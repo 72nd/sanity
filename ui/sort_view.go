@@ -54,16 +54,29 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	}
 	w.queue.AccessibleLabel = i18n.T("nav.sort")
 	w.queue.StretchLast = true
+	w.queue.Mode = grid.SelectMulti // Shift/Cmd-click or Cmd+A select a batch
+	w.queue.Key = func(it inbox.Item) string { return it.ID }
 	w.picker.PlaceHolder = i18n.T("sort.type.placeholder")
 	pathLabel := widgets.NewLabel("", widgets.LabelMuted)
 	hint := widgets.NewLabel("", widgets.LabelMuted)
 	dupLabel := widgets.NewLabel("", widgets.LabelBody)
 	dupLabel.Hide()
 
+	// Batch panel: shown instead of the single form while several documents
+	// are selected (sort_batch.go in the presenter does the planning).
+	batchTitle := widgets.NewLabel("", widgets.LabelBody)
+	batchTitle.Bold = true
+	batchHint := widgets.NewLabel(i18n.T("sort.batch.hint"), widgets.LabelMuted)
+	batchPicker := widgets.NewPicker(nil)
+	batchPicker.PlaceHolder = i18n.T("sort.type.placeholder")
+	batchPlan := widgets.VBox()
+	batchType := ""         // the type picked for the batch
+	var refreshBatch func() // set below; analysis results call it
+
 	var syncing bool // true while code, not the user, fills the fields
 	shownID := ""    // the document whose preview is on screen
 
-	notify := func(st theme.Status, msg string) { sh.Toasts.Notify(st, msg, 4*time.Second) }
+	notify := func(st theme.Status, msg string) { sh.Toasts.Notify(st, msg, toastDur(4*time.Second)) }
 
 	refreshForm := func() {
 		if rel, ok := p.PathPreview(); ok {
@@ -144,7 +157,10 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		}
 		pageLabel.Refresh()
 	}
-	w.preview.OnZoomChanged = func(float64) { showZoom() }
+	shownScale := 0.0 // render scale of the image on screen
+	var rerenderTimer *time.Timer
+	scheduleRerender := func() {} // set below; sharper render after the zoom settled
+	w.preview.OnZoomChanged = func(float64) { showZoom(); scheduleRerender() }
 
 	loadPreview := func() {
 		cur, ok := p.Current()
@@ -154,9 +170,11 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 			return
 		}
 		w.preview.SetLoading(true)
+		page, _ := p.Page(cur.ID)
+		// sharp at once for a remembered zoom
+		scale := p.PreviewScale(p.View(cur.ID).Zoom)
 		go func() { // rendering never blocks the UI thread
-			page, _ := p.Page(cur.ID)
-			img, pages, err := p.Preview(cur.Path, page)
+			img, pages, err := p.PreviewAt(cur.Path, page, scale)
 			fyne.Do(func() {
 				if c, ok := p.Current(); !ok || c.ID != cur.ID {
 					return // moved on meanwhile
@@ -167,13 +185,49 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 					return
 				}
 				p.SetPageCount(cur.ID, pages)
+				shownScale = p.CachedScale(cur.Path, page)
 				w.preview.SetImage(img)
 				v := p.View(cur.ID) // zoom and scroll are remembered per document
 				w.preview.SetZoom(v.Zoom)
 				w.preview.SetScrollOffset(fyne.NewPos(float32(v.X), float32(v.Y)))
 				showZoom()
+				p.PreviewShown(cur.ID)
+				p.Prefetch(context.Background()) // the next document renders while this one is read
 			})
 		}()
+	}
+	// rerender swaps in a sharper image after zooming. The cut is the same page
+	// fraction at every scale, so the zoom and the scroll offset (display
+	// pixels of the fit-width view) stay valid and the same part stays visible.
+	rerender := func() {
+		cur, ok := p.Current()
+		page, _ := p.Page(cur.ID)
+		scale := p.PreviewScale(w.preview.Zoom())
+		if !ok || cur.ID != shownID || scale <= shownScale*1.01 {
+			return
+		}
+		go func() {
+			img, _, err := p.PreviewAt(cur.Path, page, scale)
+			fyne.Do(func() {
+				if c, ok := p.Current(); err != nil || !ok || c.ID != cur.ID || c.ID != shownID {
+					return
+				}
+				if pg, _ := p.Page(cur.ID); pg != page {
+					return
+				}
+				zoom, off := w.preview.Zoom(), w.preview.ScrollOffset()
+				shownScale = p.CachedScale(cur.Path, page)
+				w.preview.SetImage(img)
+				w.preview.SetZoom(zoom)
+				w.preview.SetScrollOffset(off)
+			})
+		}()
+	}
+	scheduleRerender = func() {
+		if rerenderTimer != nil {
+			rerenderTimer.Stop()
+		}
+		rerenderTimer = time.AfterFunc(300*time.Millisecond, func() { fyne.Do(rerender) })
 	}
 
 	analyse := func() {
@@ -184,6 +238,9 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 					syncFields()
 				}
 				w.queue.SetItems(p.Items())
+				if p.BatchActive() {
+					refreshBatch() // the plan follows the arriving analysis
+				}
 			})
 		})
 	}
@@ -275,6 +332,10 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	}
 
 	act.File = func() {
+		if p.BatchActive() { // Cmd+Enter files the batch when one is selected
+			act.FileBatch()
+			return
+		}
 		if !p.CanFile() {
 			notify(theme.StatusWarning, i18n.T("error.sort.incomplete"))
 			return
@@ -288,6 +349,48 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 					return
 				}
 				notify(theme.StatusSuccess, i18n.T("toast.filed", "Path", e.Path))
+				showDoc()
+			})
+		}()
+	}
+	act.FileBatch = func() {
+		if !p.CanBatch(batchType) {
+			notify(theme.StatusWarning, i18n.T("sort.batch.incomplete"))
+			return
+		}
+		typeID := batchType
+		saveView()
+		go func() {
+			filed, failed := p.FileBatch(context.Background(), typeID)
+			fyne.Do(func() {
+				if len(failed) > 0 {
+					f := failed[0]
+					notify(theme.StatusDanger, i18n.T("toast.batch.partial", "Done", strconv.Itoa(len(filed)),
+						"Failed", strconv.Itoa(len(failed)), "Name", f.Name, "Err", f.Err.Error()))
+				} else {
+					notify(theme.StatusSuccess, i18n.T("toast.batch.filed", "Count", strconv.Itoa(len(filed))))
+				}
+				w.queue.SelectKeys(p.Selection())
+				showDoc()
+			})
+		}()
+	}
+	act.UndoBatch = func() {
+		if !p.CanUndo() {
+			return
+		}
+		go func() {
+			es, err := p.UndoBatch(context.Background())
+			fyne.Do(func() {
+				if err != nil {
+					notify(theme.StatusDanger, err.Error())
+				}
+				if len(es) > 0 {
+					notify(theme.StatusInfo, i18n.T("toast.batch.undone", "Count", strconv.Itoa(len(es))))
+				}
+				if _, ok := p.Current(); !ok {
+					p.Step(0)
+				}
 				showDoc()
 			})
 		}()
@@ -422,7 +525,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	learnBtn := widgets.NewButton(i18n.T("sort.learn"), widgets.ButtonSecondary, func() { act.LearnRules() })
 	addBtn := widgets.NewButton(i18n.T("sort.add"), widgets.ButtonSecondary, func() { act.AddFiles() })
 
-	form := widgets.VBox(
+	single := widgets.VBox(
 		dupLabel,
 		widgets.NewFormRow(i18n.T("sort.type"), w.picker),
 		widgets.NewFormRow(i18n.T("sort.date"), w.date),
@@ -431,6 +534,76 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		pathLabel, hint,
 		widgets.HBox(fileBtn, skipBtn, learnBtn),
 	)
+	batchBtn := widgets.NewButton("", widgets.ButtonPrimary, func() { act.FileBatch() })
+	batchBox := widgets.VBox(batchTitle, batchHint,
+		widgets.NewFormRow(i18n.T("sort.type"), batchPicker), batchPlan, batchBtn)
+	batchBox.Hide()
+	refreshBatch = func() {
+		sel := p.Selection()
+		on := len(sel) > 1
+		if on {
+			choices := p.BatchTypeChoices()
+			valid, suggested := false, ""
+			items := make([]widgets.PickerItem, 0, len(choices))
+			for _, c := range choices {
+				it := widgets.PickerItem{ID: c.ID, Label: c.Name, Score: c.Score}
+				if c.Confident {
+					it.Badge, it.BadgeStatus = i18n.T("sort.badge.suggested"), theme.StatusSuccess
+					if suggested == "" {
+						suggested = c.ID
+					}
+				}
+				valid = valid || c.ID == batchType
+				items = append(items, it)
+			}
+			if !valid { // keep a still valid pick, else take the suggestion
+				batchType = suggested
+			}
+			batchPicker.SetItems(items)
+			batchPicker.Preselect(batchType)
+			n := strconv.Itoa(len(sel))
+			batchTitle.SetText(i18n.T("sort.batch.title", "Count", n))
+			batchBtn.SetLabel(i18n.T("sort.batch.file", "Count", n))
+			var rows []fyne.CanvasObject
+			for _, b := range p.BatchPlan(batchType) {
+				name := widgets.NewLabel(b.Name, widgets.LabelBody)
+				switch {
+				case batchType == "":
+					rows = append(rows, name)
+				case b.Blocked():
+					why := b.Err
+					if len(b.Missing) > 0 {
+						why = i18n.T("sort.batch.missing", "Fields", joinComma(b.Missing))
+					}
+					rows = append(rows, widgets.HBox(widgets.NewStatusBadge(theme.StatusWarning, i18n.T("sort.batch.blocked")), name),
+						widgets.NewLabel(why, widgets.LabelMuted))
+				default:
+					rows = append(rows, widgets.HBox(widgets.NewStatusBadge(theme.StatusSuccess, i18n.T("sort.batch.ready")), name),
+						widgets.NewLabel("→ "+b.Path, widgets.LabelMuted))
+				}
+			}
+			pl := batchPlan.(*fyne.Container)
+			pl.Objects = rows
+			pl.Refresh()
+			if p.CanBatch(batchType) {
+				batchBtn.Enable()
+			} else {
+				batchBtn.Disable()
+			}
+			single.Hide()
+			batchBox.Show()
+		} else {
+			batchBox.Hide()
+			single.Show()
+		}
+	}
+	batchPicker.OnChanged = func(id string) { batchType = id; refreshBatch() }
+	batchPicker.OnCommitted = batchPicker.OnChanged
+	w.queue.OnSelectionChanged = func() {
+		p.SetSelection(w.queue.SelectedKeys())
+		refreshBatch()
+	}
+	form := widgets.VBox(single, batchBox)
 	side := widgets.Border(nil, widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeTop, 6, addBtn), nil, nil, w.queue)
 	right := widgets.Scroll(widgets.PagePadded(widgets.NewCard(i18n.T("sort.form.title"), "", form)))
 
@@ -463,7 +636,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		}
 	}
 	act.fields = w
-	go func() {
+	go func() { // the page is attached to the window when this returns
 		err := p.LoadTypes(context.Background())
 		fyne.Do(func() {
 			if err != nil {

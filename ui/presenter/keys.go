@@ -1,6 +1,9 @@
 package presenter
 
-import "time"
+import (
+	"sort"
+	"time"
+)
 
 // SequenceTimeout is how long a pending key waits for its second key. A second
 // key that arrives later starts over, as in Vim's timeoutlen.
@@ -61,6 +64,7 @@ var keymaps = map[KeyContext]keymap{
 			'o': "add",
 			'/': "search",
 			':': "palette",
+			'?': "shortcuts",
 		},
 		seqs: map[string]string{
 			"gg": "first",
@@ -205,4 +209,52 @@ func (km keymap) isPrefix(r rune) bool {
 		}
 	}
 	return false
+}
+
+// KeyBinding is one normal mode key (or two-key sequence) and its command id.
+type KeyBinding struct {
+	Keys string // for example "gg", "j" or "Enter"
+	Cmd  string // for example "first"
+}
+
+// KeyBindings lists the normal mode bindings of ctx, sorted by Keys. It reads
+// the same tables as the parser, so it cannot drift from it.
+func KeyBindings(ctx KeyContext) []KeyBinding {
+	km := keymaps[ctx]
+	var out []KeyBinding
+	for r, cmd := range km.singles {
+		out = append(out, KeyBinding{Keys: string(r), Cmd: cmd})
+	}
+	for seq, cmd := range km.seqs {
+		out = append(out, KeyBinding{Keys: seq, Cmd: cmd})
+	}
+	if cmd := enterCmds[ctx]; cmd != "" {
+		out = append(out, KeyBinding{Keys: "Enter", Cmd: cmd})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Keys < out[j].Keys })
+	return out
+}
+
+// keyDescriptions are English fallback descriptions of the vim commands, used
+// when the catalog has no text for them.
+var keyDescriptions = map[string]string{
+	"next": "Next document", "prev": "Previous document", "first": "First document", "last": "Last document",
+	"page.next": "Next page", "page.prev": "Previous page",
+	"zoom.in": "Zoom in", "zoom.out": "Zoom out", "zoom.fit": "Fit to window",
+	"focus.type": "Edit type", "focus.date": "Edit date", "focus.first": "Edit first empty field",
+	"reveal": "Show in Finder", "undo": "Undo last filing", "copy.abs": "Copy absolute path",
+	"copy.rel": "Copy relative path", "remove": "Remove from queue", "add": "Add files",
+	"search": "Search", "palette": "Command palette", "shortcuts": "Show shortcuts",
+	"row.down": "Row down", "row.up": "Row up", "row.last": "Last row", "row.first": "First row",
+	"hit.next": "Next search hit", "hit.prev": "Previous search hit", "select": "Select row",
+	"select.rows": "Select rows", "resort": "Sort again", "open": "Open document",
+}
+
+// KeyDescription returns the English fallback description of a vim command id,
+// or the id itself when there is none.
+func KeyDescription(cmd string) string {
+	if d, ok := keyDescriptions[cmd]; ok {
+		return d
+	}
+	return cmd
 }

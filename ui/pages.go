@@ -14,9 +14,12 @@ import (
 // Pages returns the navigation of the app. The Library is always the start
 // page (Cmd+1); Sort is Cmd+2, Types Cmd+3.
 func Pages(lib *presenter.Library, sort *presenter.Sort, q *inbox.Queue, act *SortActions, keys *presenter.Keys, types *presenter.Types) []shell.Page {
+	lib.InboxCount = q.Len // the hint above the library grid
 	return []shell.Page{
 		{ID: "library", TitleKey: "nav.library", Icon: fynetheme.IconNameFolder,
-			Build: func(sh *shell.Shell) fyne.CanvasObject { return LibraryPage(sh, lib) }},
+			Build:  func(sh *shell.Shell) fyne.CanvasObject { return LibraryPage(sh, lib, act) },
+			OnShow: func(sh *shell.Shell) { InstallLibraryVim(sh, act, keys) },
+			Focus:  act.Library.Focus},
 		// Keep: the form, the zoom and the position in the queue survive a
 		// visit to another page.
 		{ID: "sort", TitleKey: "nav.sort", Icon: fynetheme.IconNameDocument, Keep: true,

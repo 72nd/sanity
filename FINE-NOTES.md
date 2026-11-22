@@ -26,3 +26,5 @@ Gaps, bugs and surprises found while building sanity. Newest first.
 - `grid.Grid` has a minimum height of about 4 rows. sanity wraps it in a small `minHeight` layout (`ui/layout.go`); a `widgets.MinHeight` helper in fine would be cleaner.
 - `domain` has no sentinel error for a template that escapes the root (`..`); the presenter matches the error text.
 - `widgets.Split` had no per-side minimum sizes and the leading side won when space ran short (fixed: `SetMinLeading`/`SetMinTrailing`).
+
+- Import dialog (types): `widgets.ShowCustom` has one close button and no way to add action buttons, so Save and Save and edit sit inside the content. A `ShowDialog(win, title, content, buttons...)` would be cleaner. `widgets.Label` does not wrap, so long finding messages run out of the dialog.

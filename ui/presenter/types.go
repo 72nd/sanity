@@ -81,24 +81,33 @@ type Types struct {
 	store store.Store
 	T     Translator
 
-	root    string
-	types   []domain.DocumentType // as stored
-	draft   domain.DocumentType
-	saved   domain.DocumentType // the draft as last loaded or saved; Dirty compares with it
-	isNew   bool                // the draft is not in the store yet
-	hasCur  bool
-	example Example
+	root     string
+	types    []domain.DocumentType // as stored
+	draft    domain.DocumentType
+	saved    domain.DocumentType // the draft as last loaded or saved; Dirty compares with it
+	loadedAt time.Time
+	isNew    bool // the draft is not in the store yet
+	hasCur   bool
+	example  Example
+
+	// Import holds the headless pieces of the import flow (types_import.go).
+	Import ImportFuncs
+	imp    importSession
 }
 
 // NewTypes creates the presenter.
 func NewTypes(s store.Store, t Translator) *Types {
-	return &Types{store: s, T: t, example: Example{
+	return &Types{store: s, T: t, Import: defaultImportFuncs(), example: Example{
 		Date:     time.Date(2025, time.March, 12, 0, 0, 0, 0, time.UTC),
 		Invoice:  "RE-2025-0042",
 		Amount:   "49.95",
 		Original: "scan_0042",
 	}}
 }
+
+// Fresh reports whether the types were loaded a moment ago, so a page shown
+// again right away needs no reload.
+func (p *Types) Fresh() bool { return !p.loadedAt.IsZero() && time.Since(p.loadedAt) < 2*time.Second }
 
 // Load fetches the project. Call it from a goroutine. The selection survives
 // when the type still exists; otherwise the first type is selected. Unsaved
@@ -108,7 +117,7 @@ func (p *Types) Load(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	p.root, p.types = pr.Root, pr.Types
+	p.root, p.types, p.loadedAt = pr.Root, pr.Types, time.Now()
 	switch {
 	case p.isNew:
 		// keep the unsaved draft
@@ -534,8 +543,11 @@ func (p *Types) SetExample(e Example) { p.example = e }
 func (p *Types) ExampleValues() Example { return p.example }
 
 // Preview evaluates the draft's path template with the example values.
-func (p *Types) Preview() Preview {
-	tpl, err := domain.ParseTemplate(p.draft.PathTemplate)
+func (p *Types) Preview() Preview { return p.previewOf(p.draft) }
+
+// previewOf evaluates the path template of t with the example values.
+func (p *Types) previewOf(t domain.DocumentType) Preview {
+	tpl, err := domain.ParseTemplate(t.PathTemplate)
 	if err != nil {
 		return Preview{Invalid: true, Message: p.T("types.preview.invalid", "Reason", reason(err))}
 	}
@@ -543,7 +555,7 @@ func (p *Types) Preview() Preview {
 		return p.failed(err, nil)
 	}
 	v := domain.Values{
-		Date: p.example.Date, Type: p.draft.Name, Invoice: p.example.Invoice,
+		Date: p.example.Date, Type: t.Name, Invoice: p.example.Invoice,
 		Amount: p.example.Amount, Original: p.example.Original, Text: map[string]string{},
 	}
 	for _, m := range tpl.Missing(v) {

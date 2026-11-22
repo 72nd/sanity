@@ -267,10 +267,41 @@ The Library is the start page. It lists every filed document with these columns:
 
 - The field above the grid filters the rows as you type. It matches the path, the type name, the
   invoice number and the amount.
-- The status bar shows the number of rows shown and in total, and the number of selected rows.
+- `Cmd+F` focuses the filter field; `Enter` in it returns to the grid. The filter text and the
+  selection are kept when you visit another page.
+- When documents wait in the inbox, a line above the filter says how many, with a button that opens
+  the Sort page.
+- The status bar shows the number of rows shown and in total. With a selection it adds "N selected,
+  total X EUR": the amounts of the selected rows are added up per currency (rows whose amount cannot
+  be read are left out).
+- `Enter` (or double-click) opens the PDF in the default viewer.
+- The context menu (right click on a row) offers copy relative path, show in Finder, sort again and
+  remove from the library. Removing asks first and deletes only the library entry; the file stays.
+  Sort again puts the file back into the sort queue and shows the Sort page; filing it again moves and
+  renames it. The old library entry stays until then.
 
-The Library has no keyboard shortcuts yet (see [Planned](#planned-not-built-yet)). Use the mouse to
-select rows and to click the filter field.
+| Shortcut | Action |
+|---|---|
+| `Cmd+F` | focus the filter |
+| `Cmd+Shift+C` / `Cmd+Alt+C` | copy the relative / absolute paths of the selected rows, one per line |
+| `Cmd+R` | show the selected document in Finder |
+| `Cmd+E` | sort the selected documents again |
+
+The same keys work on the Sort page for the open document; which one runs depends on the page on screen.
+
+With the Vim layer on (the grid has the focus), these keys work:
+
+| Key | Action |
+|---|---|
+| `j` / `k` / `gg` / `G` / `Ctrl+D` / `Ctrl+U` | move the cursor |
+| `/` | focus the filter (`Enter` goes back to the grid) |
+| `n` / `N` | next / previous row that matches the filter, wrapping around |
+| `v` | start a range selection that movement extends; `v` again ends it |
+| `V` | select all rows shown |
+| `yy` | copy the relative paths of the selection |
+| `x` | show in Finder |
+| `r` | sort again |
+| `Enter` | open the document |
 
 ## The Types editor
 
@@ -356,17 +387,7 @@ in the cache file of the project (`office/.sanity/cache.json`), which can be reb
 
 These items are in [PLAN.md](../PLAN.md). They are not in the app today.
 
-- **Library keyboard layer.** The Vim keys on the Library page (`j`, `k`, `gg`, `G`, `/`, `n`, `N`,
-  `v`, `V`, `yy`, `x`, `r`), `Enter` to open a document, a context menu (copy path, show in Finder,
-  re-sort, remove from library), and `Cmd+E` to re-sort.
-- **Library shortcuts acting on the selection.** Today `Cmd+Shift+C`, `Cmd+Alt+C` and `Cmd+R` act on
-  the document of the Sort page, not on the selected library rows.
-- **Library quick filter on `Cmd+F`.** Today `Cmd+F` focuses the Type field of the Sort page; the
-  filter field is clicked.
-- **Inbox count.** A hint on the Library page with the number of waiting documents, and the count in
-  the Sort sidebar title. Today the count is in the Sort status bar ("N open").
-- **Amount total of the selection** in the Library status bar.
-- **Removing a document from the library.**
+- **Inbox count in the Sort sidebar title.** Today the count is in the Sort status bar ("N open"); the Library hint is built.
 - **Shortcut overview** (`Cmd+/`, and `?` in normal mode).
 - **Project page and project switcher** (`Cmd+Shift+P`). Today a project is opened with the command
   line argument. To change its ignore tokens, edit `office/sanity.json` while sanity is closed, since

@@ -86,6 +86,8 @@ func InstallVim(sh *shell.Shell, act *SortActions, keys *presenter.Keys) {
 			act.Search()
 		case "palette":
 			sh.Registry.Run("palette.open")
+		case "shortcuts":
+			sh.Registry.Run("shortcuts.show")
 		}
 	}
 	var timer *time.Timer

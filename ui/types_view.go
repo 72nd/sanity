@@ -151,9 +151,15 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 	dupBtn := widgets.NewButton(i18n.T("types.duplicate"), widgets.ButtonSecondary, nil)
 	delBtn := widgets.NewButton(i18n.T("types.delete"), widgets.ButtonDanger, nil)
 
-	notify := func(st theme.Status, msg string) { sh.Toasts.Notify(st, msg, 5*time.Second) }
+	notify := func(st theme.Status, msg string) { sh.Toasts.Notify(st, msg, toastDur(5*time.Second)) }
 
-	empty := widgets.NewEmptyState(fynetheme.IconNameDocument, i18n.T("types.empty.title"), i18n.T("types.empty.desc"), nil)
+	createBtn := widgets.NewButton(i18n.T("types.empty.create"), widgets.ButtonPrimary, nil)
+	importBtn := widgets.NewButton(i18n.T("types.import.button"), widgets.ButtonSecondary, nil)
+	importEmptyBtn := widgets.NewButton(i18n.T("types.import.button"), widgets.ButtonSecondary, nil)
+	promptBtn := widgets.NewButton(i18n.T("types.copyPrompt.button"), widgets.ButtonSecondary, nil)
+	jsonBtn := widgets.NewButton(i18n.T("types.copyJSON.button"), widgets.ButtonSecondary, nil)
+	emptyState := widgets.NewEmptyState(fynetheme.IconNameDocument, i18n.T("types.empty.title"), i18n.T("types.empty.desc"), createBtn)
+	empty := widgets.Border(nil, widgets.HBox(widgets.Spacer(), importEmptyBtn, widgets.Spacer()), nil, nil, emptyState)
 
 	refreshPreview := func() {
 		pv := p.Preview()
@@ -345,6 +351,47 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 	saveBtn.OnTapped = save
 	revertBtn.OnTapped = func() { p.Revert(); populate() }
 	addBtn.OnTapped = func() { p.Add(); populate() }
+	createBtn.OnTapped = addBtn.OnTapped
+
+	// --- import, copy as JSON, copy LLM prompt ---
+	copyText := func(text, doneID string) {
+		sh.App.Clipboard().SetContent(text)
+		notify(theme.StatusSuccess, i18n.T(doneID))
+	}
+	copyPrompt := func() { copyText(p.PromptText(), "types.copyPrompt.done") }
+	copyJSON := func(id string) {
+		js, err := p.TypeJSONOf(id)
+		if err != nil {
+			notify(theme.StatusDanger, i18n.T("types.copyJSON.failed", "Reason", err.Error()))
+			return
+		}
+		copyText(js, "types.copyJSON.done")
+	}
+	openImport := func() {
+		open := func() {
+			newImportDialog(sh, p, func(id string, andEdit bool) {
+				populate()
+				if andEdit {
+					sh.Win.Canvas().Focus(name)
+				}
+			}).show()
+		}
+		if !p.Dirty() {
+			open()
+			return
+		}
+		widgets.ShowConfirm(sh.Win, i18n.T("types.discard.title"), i18n.T("types.discard.message"),
+			i18n.T("types.discard"), true, func(yes bool) {
+				if yes {
+					open()
+				}
+			})
+	}
+	importBtn.OnTapped, importEmptyBtn.OnTapped = openImport, openImport
+	promptBtn.OnTapped = copyPrompt
+	jsonBtn.OnTapped = func() { copyJSON(p.CurrentID()) }
+	act := SharedTypesActions()
+	act.Import, act.CopyPrompt = openImport, copyPrompt
 	dupBtn.OnTapped = func() {
 		if err := p.Duplicate(); err == nil {
 			populate()
@@ -373,6 +420,15 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 			})
 	}
 
+	list.OnContextMenu = func(r *presenter.TypeRow, ev *fyne.PointEvent) {
+		if r == nil {
+			return
+		}
+		id := r.ID
+		widgets.ShowContextMenu(list, ev.AbsolutePosition, []widgets.MenuItem{
+			{Label: i18n.T("types.copyJSON.button"), Action: func() { copyJSON(id) }},
+		})
+	}
 	list.OnSelectionChanged = func() {
 		if syncing {
 			return
@@ -418,27 +474,29 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 	body := widgets.Scroll(widgets.PagePadded(widgets.VBox(basics, recognition, dateCard)))
 	relayout = body.Refresh
 	bar := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, 6,
-		widgets.HBox(state, widgets.Spacer(), revertBtn, saveBtn))
+		widgets.HBox(state, widgets.Spacer(), jsonBtn, revertBtn, saveBtn))
 	detailPane = widgets.Border(bar, nil, nil, nil, body)
 
 	listButtons := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeTop, 6, widgets.HBox(addBtn, dupBtn, delBtn))
-	left := widgets.Border(nil, listButtons, nil, nil, list)
+	listTools := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, 6, widgets.HBox(importBtn, promptBtn))
+	left := widgets.Border(listTools, listButtons, nil, nil, list)
 	right := widgets.Stack(detailPane, empty)
 
 	split := widgets.HSplit(left, right)
-	split.SetOffset(0.25)
+	split.SetOffset(0.3)
 
-	go func() { // never block the UI thread on the store
-		var err error
-		if !p.Dirty() { // unsaved edits survive a visit to another page
-			err = p.Load(context.Background())
-		}
-		fyne.Do(func() {
-			if err != nil {
-				notify(theme.StatusDanger, i18n.T("toast.load.failed"))
-			}
-			populate()
+	if p.Fresh() || p.Dirty() {
+		populate() // loaded a moment ago, or unsaved edits that a reload would drop
+	} else {
+		background(func() { // never block the UI thread on the store
+			err := p.Load(context.Background())
+			fyne.Do(func() {
+				if err != nil {
+					notify(theme.StatusDanger, i18n.T("toast.load.failed"))
+				}
+				populate()
+			})
 		})
-	}()
+	}
 	return split, &typesWidgets{list: list, rules: rules}
 }

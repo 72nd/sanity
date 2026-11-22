@@ -23,6 +23,7 @@ func TestTypesPageShowsRules(t *testing.T) {
 	i18n.MustAddFiles(locales.FS, locales.Files...)
 	i18n.SetLanguage("en")
 	tp := presenter.NewTypes(store.NewFake(), i18n.T)
+	preload(t, tp)
 	var w *typesWidgets
 	sh := shell.New(app, shell.Config{TitleKey: "app.title", Width: 1200, Height: 760,
 		Pages: []shell.Page{{ID: "types", TitleKey: "nav.types",
@@ -54,6 +55,7 @@ func TestRuleChoiceColumnsAreDropdowns(t *testing.T) {
 	i18n.MustAddFiles(locales.FS, locales.Files...)
 	i18n.SetLanguage("en")
 	tp := presenter.NewTypes(store.NewFake(), i18n.T)
+	preload(t, tp)
 	if err := tp.Load(context.Background()); err != nil {
 		t.Fatal(err)
 	}

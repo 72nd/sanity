@@ -30,6 +30,17 @@ type Library struct {
 	rows   []Row
 	loaded bool
 	at     time.Time
+	root   string // project root, for absolute paths
+
+	// Query and SelKeys keep the quick filter text and the selected entry ids
+	// across visits (the page is rebuilt on every show).
+	Query   string
+	SelKeys []string
+	// ImportFn takes the absolute paths of documents that go back to the sort
+	// queue (Resort). The view sets it; nil means nothing happens.
+	ImportFn func(paths ...string)
+	// InboxCount returns the number of documents waiting in the inbox.
+	InboxCount func() int
 }
 
 // NewLibrary creates the presenter.
@@ -54,7 +65,7 @@ func (p *Library) Load(ctx context.Context) error {
 		rows = append(rows, r)
 	}
 	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Entry.Date.After(rows[j].Entry.Date) })
-	p.rows, p.loaded, p.at = rows, true, time.Now()
+	p.rows, p.loaded, p.at, p.root = rows, true, time.Now(), pr.Root
 	return nil
 }
 
@@ -76,8 +87,7 @@ func (p *Library) Visible(query string) []Row {
 	}
 	var out []Row
 	for _, r := range p.rows {
-		hay := strings.ToLower(r.Entry.Path + " " + r.TypeName + " " + r.Entry.Invoice + " " + r.Entry.Amount)
-		if strings.Contains(hay, q) {
+		if matches(r, q) {
 			out = append(out, r)
 		}
 	}

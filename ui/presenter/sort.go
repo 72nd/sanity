@@ -33,10 +33,11 @@ type Sort struct {
 	pdf   pdf.Engine
 	T     Translator
 
-	types   []domain.DocumentType
-	current string
-	form    Form
-	last    *domain.LibraryEntry
+	types     []domain.DocumentType
+	current   string
+	form      Form
+	last      *domain.LibraryEntry
+	selection []string // multi-select in the queue, see sort_batch.go
 
 	views         map[string]ViewState
 	pageCount     map[string]int
@@ -44,6 +45,9 @@ type Sort struct {
 	state         *analysisState
 	suggestedType string
 	suggestedDate time.Time
+
+	pv previewCache // rendered previews (preview.go)
+	tm timings      // measured durations (preview.go)
 }
 
 // NewSort creates the presenter.
@@ -76,6 +80,7 @@ func (p *Sort) Open(id string) bool {
 		return false
 	}
 	p.current, p.form, p.last = id, Form{Text: map[string]string{}}, nil
+	p.markOpened(id)
 	p.suggestedType, p.suggestedDate = "", time.Time{}
 	p.Prefill()
 	return true
@@ -217,6 +222,7 @@ func (p *Sort) File(ctx context.Context) (domain.LibraryEntry, error) {
 		return domain.LibraryEntry{}, err
 	}
 	p.queue.Remove(cur.ID)
+	p.forgetPreview(cur.Path)
 	p.current, p.form = "", Form{Text: map[string]string{}}
 	p.Step(0)
 	p.last = &e // after Step: opening an item clears it
@@ -249,17 +255,7 @@ func (p *Sort) Undo(ctx context.Context) (domain.LibraryEntry, error) {
 // cuts the empty margin off, so the content fills the preview. It returns the
 // number of pages. Call it from a goroutine; it may block.
 func (p *Sort) Preview(path string, page int) (image.Image, int, error) {
-	meta, err := p.pdf.Meta(path)
-	if err != nil {
-		return nil, 0, err
-	}
-	pages := max(meta.Pages, 1)
-	page = min(max(page, 0), pages-1)
-	img, err := p.pdf.Render(path, page, 2.0)
-	if err != nil {
-		return nil, pages, err
-	}
-	return pdf.CropWhite(img), pages, nil
+	return p.PreviewAt(path, page, BaseScale)
 }
 
 // ViewState is how the preview of one document is shown: the zoom factor
@@ -323,6 +319,7 @@ func (p *Sort) Remove() error {
 		return err
 	}
 	p.queue.Remove(cur.ID)
+	p.forgetPreview(cur.Path)
 	p.current, p.form = "", Form{Text: map[string]string{}}
 	p.Step(0)
 	return nil

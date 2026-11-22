@@ -65,7 +65,9 @@ func (p *Sort) Analyse(ctx context.Context, done func(id string)) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			p.queue.SetStatus(it.ID, inbox.StatusAnalysing, "")
+			t0 := time.Now()
 			r := p.analyzer.Analyze(ctx, it.Path)
+			p.recordTiming(Timing{Kind: TimingAnalysis, Name: it.Path, D: time.Since(t0)})
 			p.state.mu.Lock()
 			p.state.results[it.ID] = r
 			delete(p.state.inflight, it.ID)
@@ -130,10 +132,12 @@ func (p *Sort) Prefill() {
 
 // TypeChoices lists all types for the picker: suggested ones with their score,
 // the rest unscored. The picker ranks them.
-func (p *Sort) TypeChoices() []TypeChoice {
+func (p *Sort) TypeChoices() []TypeChoice { return p.typeChoicesFor(p.current) }
+
+func (p *Sort) typeChoicesFor(id string) []TypeChoice {
 	scores := map[string]float64{}
 	conf := map[string]bool{}
-	if r, ok := p.result(p.current); ok {
+	if r, ok := p.result(id); ok {
 		for _, s := range r.Suggestions {
 			scores[s.TypeID] = s.Score
 			conf[s.TypeID] = s.Confident

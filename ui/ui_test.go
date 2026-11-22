@@ -179,3 +179,8 @@ func TestPasteFilesImportsClipboardPDFs(t *testing.T) {
 		t.Errorf("current %q, want the pasted file", cur.Path)
 	}
 }
+
+func TestMain(m *testing.M) {
+	SyncBackground()
+	os.Exit(m.Run())
+}
