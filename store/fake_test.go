@@ -201,3 +201,17 @@ func TestFakeConcurrentAccess(t *testing.T) {
 		t.Fatalf("after concurrent add/remove want 25 entries, got %d", len(lib))
 	}
 }
+
+func TestFakeSaveProject(t *testing.T) {
+	ctx := context.Background()
+	f := NewFake()
+	ign := []string{"a", "b"}
+	if err := f.SaveProject(ctx, "Neu", "in", ign); err != nil {
+		t.Fatal(err)
+	}
+	ign[0] = "changed" // the store must not alias the caller's slice
+	p, _ := f.Project(ctx)
+	if p.Name != "Neu" || p.Inbox != "in" || p.IgnoreTokens[0] != "a" || len(p.Types) == 0 {
+		t.Errorf("unexpected project: %+v", p)
+	}
+}

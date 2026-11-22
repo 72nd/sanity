@@ -21,6 +21,9 @@ type Store interface {
 	// DeleteType removes a document type by id. An unknown id is an error;
 	// library entries of the type are kept.
 	DeleteType(ctx context.Context, id string) error
+	// SaveProject replaces the project name, the inbox folder (relative to the
+	// root) and the own identifiers the learning ignores.
+	SaveProject(ctx context.Context, name, inbox string, ignore []string) error
 	// AddEntry appends a library entry.
 	AddEntry(ctx context.Context, e domain.LibraryEntry) error
 	// RemoveEntry removes a library entry by id.

@@ -95,6 +95,14 @@ func (j *JSON) SaveType(ctx context.Context, t domain.DocumentType) error {
 	})
 }
 
+// SaveProject implements Store.
+func (j *JSON) SaveProject(ctx context.Context, name, inbox string, ignore []string) error {
+	return j.mutate(func(m *memory) error {
+		m.saveProject(name, inbox, ignore)
+		return nil
+	})
+}
+
 // DeleteType implements Store.
 func (j *JSON) DeleteType(ctx context.Context, id string) error {
 	return j.mutate(func(m *memory) error {

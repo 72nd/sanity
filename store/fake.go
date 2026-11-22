@@ -63,6 +63,14 @@ func (f *Fake) SaveType(ctx context.Context, t domain.DocumentType) error {
 	return nil
 }
 
+// SaveProject implements Store.
+func (f *Fake) SaveProject(ctx context.Context, name, inbox string, ignore []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.m.saveProject(name, inbox, ignore)
+	return nil
+}
+
 // DeleteType implements Store.
 func (f *Fake) DeleteType(ctx context.Context, id string) error {
 	f.mu.Lock()

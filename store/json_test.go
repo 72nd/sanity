@@ -235,3 +235,30 @@ func TestJSONDeleteTypePersists(t *testing.T) {
 		t.Fatalf("after reopen: %+v", types)
 	}
 }
+
+func TestJSONSaveProject(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	j, err := OpenJSON(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := j.SaveProject(ctx, "Neu GmbH", "scan/in", []string{"DE123", "Musterstr. 1"}); err != nil {
+		t.Fatal(err)
+	}
+	again, err := OpenJSON(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, _ := again.Project(ctx)
+	if p.Name != "Neu GmbH" || p.Inbox != "scan/in" || !reflect.DeepEqual(p.IgnoreTokens, []string{"DE123", "Musterstr. 1"}) {
+		t.Errorf("not persisted: %+v", p)
+	}
+	if err := again.SaveProject(ctx, "X", "", nil); err != nil {
+		t.Fatal(err)
+	}
+	p, _ = again.Project(ctx)
+	if p.Inbox != domain.DefaultInbox || p.IgnoreTokens == nil {
+		t.Errorf("empty inbox must fall back to the default and tokens stay non-nil: %+v", p)
+	}
+}

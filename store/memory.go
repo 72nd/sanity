@@ -23,6 +23,18 @@ func (m *memory) snapshot() domain.Project {
 	return p
 }
 
+func (m *memory) saveProject(name, inbox string, ignore []string) {
+	m.p.Name = name
+	if inbox == "" {
+		inbox = domain.DefaultInbox
+	}
+	m.p.Inbox = inbox
+	m.p.IgnoreTokens = slices.Clone(ignore)
+	if m.p.IgnoreTokens == nil {
+		m.p.IgnoreTokens = []string{}
+	}
+}
+
 func (m *memory) saveType(t domain.DocumentType) {
 	t = cloneType(t)
 	for i := range m.p.Types {
