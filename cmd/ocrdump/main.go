@@ -25,7 +25,7 @@ func main() {
 	sweep := flag.Bool("sweep", false, "try several minimum text heights and scales")
 	flag.Parse()
 	if *file == "" {
-		fmt.Fprintln(os.Stderr, "usage: ocrdump -file x.pdf [-page 0] [-scale 3.5] [-min 0.005] [-text] [-sweep]")
+		fmt.Fprintln(os.Stderr, "usage: ocrdump -file x.pdf [-page 0] [-scale 2.5] [-min 0.005] [-text] [-sweep]")
 		os.Exit(2)
 	}
 	e := pdf.NewEngine()
@@ -55,7 +55,7 @@ func main() {
 		return out
 	}
 	if *sweep {
-		for _, s := range []float64{2.5, 3.5, 5} {
+		for _, s := range []float64{1.5, 2, 2.5, 3, 3.5} {
 			for _, m := range []float64{0, 0.01, 0.005, 0.003, 0.0015} {
 				run(s, m)
 			}

@@ -129,6 +129,11 @@ App shortcuts must therefore avoid those keys. Every shortcut is also a shell `C
   - In Library, it copies the paths of the selected rows, one per line.
   - It uses `App.Clipboard().SetContent`, which handles text, and confirms with a toast.
   - Paths use `/` and the collision suffix that was actually applied.
+- **Shortcut overview (P6):** `Cmd+/` (and `?` in Vim normal mode) opens a dialog listing all shortcuts, grouped by page and
+  by the Cmd and Vim layers, with a filter field. It is also a shell `Command`, so it appears in the palette. The list is built
+  from the registered commands and the key parser table in `ui/presenter/keys.go`, not typed by hand, so it cannot drift from
+  the real bindings. Vim entries are hidden when `sanity.vim` is off. A presenter test checks that every registered shortcut
+  appears in the list.
 - **P3 task:** every shortcut gets a test that checks it does not collide with a focused `Entry`, `ComboBox`/Picker or `DateEntry`.
   Collisions found go into `FINE-NOTES.md`.
 
@@ -242,6 +247,8 @@ target path:
   - Date: preferred labels, ignored labels, a period and a maximum age.
 - The sort screen has an extra action, "Learn rules from this document", which suggests distinctive identifiers
   as checkboxes. IBAN, VAT ID and domain are ticked by default.
+- **P6 additions (LLM-assisted setup, see section 3a):** the list gets an "Import type…" button, a "Copy as JSON" action
+  per type and a "Copy LLM prompt" button. The import opens a review dialog, described in section 3a.
 
 ## 3. Recognition (local only)
 
@@ -293,11 +300,136 @@ The proof of concept (`research/_poc/`, see section 8) produced these results:
 
 Details and regexes: the research notes in section 8.
 
+## 3a. LLM-assisted type setup (P6)
+
+**Idea.** Setting up a new document type by hand (rules, weights, path template, date labels) is a one-off chore. A LLM
+can draft it from one or two redacted sample receipts. The LLM is used **only at configuration time**, never while
+sorting: classification stays local, deterministic and offline (section 3). The LLM produces a `DocumentType` as JSON, and
+sanity validates and dry-runs it before anything is saved. The user always has the last word.
+
+**Why it fits.**
+- The output is exactly one `domain.DocumentType`, a flat JSON object that goes into `types[]` of `office/sanity.json`.
+- The checks exist already: `Template.Validate`, regex compilation, `EvalRules` and `Classify` (section 3).
+- It closes the cold-start gap. A new type has no filed documents, so the learned score is capped at 0.7
+  (`minFiledForFull = 3`). A good rule set is what gives the first one-key suggestion.
+
+**Flow.**
+1. The user redacts a sample PDF (own IBAN, address, amounts) and gives it to an agent (Claude Code skill, or any chat with the
+   copied prompt). Input is the document text; scans need OCR or a vision model first.
+2. The agent returns one JSON snippet (format below).
+3. The user pastes it in **Types → Import type…** (or runs the CLI check below). sanity validates, dry-runs and shows a
+   review dialog. Only after "Save" is the type stored via `Store.SaveType`.
+
+**Snippet format.** A bare `DocumentType` is accepted. The recommended form is an envelope with notes that are not stored:
+
+```json
+{
+  "type": {
+    "id": "hetzner-invoice",
+    "name": "Hetzner Invoice",
+    "pathTemplate": "receipts/{date:2006}/hosting/{date:2006-01-02}_hetzner_{invoice}.pdf",
+    "rules": [
+      {"kind": "domain",  "value": "hetzner.com", "mode": "should", "weight": 0.9, "where": "header", "enabled": true},
+      {"kind": "vatId",   "value": "DE812871812", "mode": "must",   "weight": 0.9, "where": "any",    "enabled": true},
+      {"kind": "keyword", "value": "rechnung",    "mode": "should", "weight": 0.2, "where": "header", "enabled": true}
+    ],
+    "threshold": 0.8,
+    "useLearned": true,
+    "date": {"preferredLabels": ["Rechnungsdatum"], "ignoreLabels": ["Fälligkeitsdatum"], "source": "auto", "maxAgeYears": 2}
+  },
+  "notes": [
+    {"rule": 0, "why": "Sender domain in the letterhead"},
+    {"warning": "The IBAN in the sample was redacted, so no iban rule was created."}
+  ]
+}
+```
+
+Import defaults (a missing JSON field decodes to Go's zero value, so the importer fills them): `enabled` → true,
+`useLearned` → true, `threshold` 0 → 0.8 (`Classify` already treats 0 as default), `date.source` → `auto`.
+
+**Skill / prompt content** (one source of truth, `prompts/type-setup.md`, embedded with `go:embed` and also used by the skill):
+- Role and goal: "Return exactly one DocumentType for this receipt, as JSON, nothing else."
+- The schema with the enum values from the code (`kind`, `mode`, `where`, `source`) and the weight convention
+  (weak 0.2, normal 0.5, strong 0.9). The enums in the prompt are generated from the Go constants or checked by a test, so
+  they cannot drift.
+- The path template placeholders (`{date:<Go layout>}`, `{type}`, `{invoice}`, `{amount}`, `{original}`, `{text:<label>}`),
+  with a note on the Go layout (`2006-01-02`).
+- How good rules look:
+  - Identifiers of the sender (VAT ID, IBAN, domain) are strong. A fixed identifier may be `must`.
+  - Generic words ("Rechnung", "Betrag") are weak.
+  - No amounts, dates, invoice numbers or recipient data as rules.
+  - Prefer `header` and `footer`; use 3 to 6 rules.
+- Matching facts the agent must know: text is compared lower-cased, regexes compile with `(?i)`, so no `[A-Z]` classes;
+  IBAN and VAT ID are compared without spaces.
+- Redaction contract: placeholders such as `[REDACTED]` or `XXXX` must never become a rule value. If an identifier is
+  redacted, the agent says so in `notes` and does not invent one.
+- Output: JSON only, validated against a JSON schema where the host supports structured output.
+- A worked example (the snippet above).
+
+**Validation and dry run** (headless, in `analysis/`, no UI): `analysis.CheckType(t, existing, samples, learned)` returns a
+report. It does not change the classifier.
+- *Static checks:* `ParseTemplate(...).Validate()`, every regex compiles, enums are known, weights are in 0..1, `id` is
+  non-empty, at least one enabled rule. Redaction placeholders in rule values are an error. A rule that is only
+  generic words (all weights ≤ 0.2) is a warning.
+- *Collisions:* an `id` that already exists offers "replace" or a suggested unique id.
+- *Dry run against the samples:* the type's own score and `Confident` for each sample (needs the sample text, so the
+  import dialog takes the sample PDF through the normal pipeline), and which **other** types score above 0 on the sample.
+- *Dry run against the library:* filed documents whose text now scores this new type above 0.5 are listed as possible false
+  positives. This needs the text cache (`cache.json`); entries without cached text are skipped and counted.
+- Failing static checks block "Save". A weak dry run (sample not confident, or false positives) only warns, because a
+  type with a single sample often cannot be confident yet.
+
+**CLI check for the agent loop** (second step; the first step is the import dialog only):
+`sanity types check <snippet.json> <sample.pdf>... [--project <root>]` runs `CheckType` and prints the report as JSON.
+An agent in Claude Code can call it and refine the snippet until it passes. It needs the `pdf` package for text, so it runs
+on macOS only. In `main.go` it is a subcommand next to the GUI start, with no UI imports in the code behind it.
+
+**Privacy.** Sample text may contain personal data.
+- The prompt asks the user to redact first. The import dialog warns about unredacted own identifiers: it checks the pasted
+  snippet and the sample against `Project.IgnoreTokens` and shows hits.
+- Sanity itself never calls an LLM and never sends text anywhere. The LLM runs outside the app (the user's agent or chat).
+- Option for later: a local model, or an in-app "Suggest rules" button with an explicit consent dialog that shows exactly
+  what is sent. Not part of P6.
+
+**UI changes** (Types page, the only page that changes):
+- **List column:** a toolbar button "Import type…" and an entry in the row context menu "Copy as JSON" (the same envelope-less
+  `DocumentType`, to refine a type with an LLM). The command palette gets "Import type…" and "Copy LLM prompt". No new global
+  shortcut. The P6 shortcut overview lists the palette commands anyway.
+- **Import dialog** (`widgets.ShowDialog` with a form; no raw Fyne widgets):
+  1. A multi-line text field for the snippet, with "Paste from clipboard", and an optional "Add sample PDF…" button
+     (`widgets.ShowFileOpen`) for the dry run.
+  2. After "Check": a result list with one row per finding, each with icon and label (status is never colour only):
+     error, warning, ok. Rules from `notes` show their `why` text next to the rule.
+  3. A rule preview grid (read-only, same columns as the editor) and the evaluated path template for an example date.
+  4. A dry-run table: sample file, own score, confident yes/no, other types above 0.
+  5. Buttons: "Save" (disabled while errors exist), "Save and edit" (opens the type in the editor) and "Cancel".
+     The `id` collision choice (replace / new id) sits above the buttons.
+- **"Copy LLM prompt" button** (card header of the list, and the palette): copies `prompts/type-setup.md`, with the project's
+  current type ids appended so the agent can avoid duplicates, to the clipboard. A toast confirms.
+- **Rule grid:** a small note column, shown only for rules that came from an import (`why`), is *not* stored in
+  `sanity.json`; it exists only in the import dialog. No new fields in `domain.Rule`.
+- **Empty state:** the Types page without any type shows two actions: "Create type" and "Import type…".
+- **Presenter:** `ui/presenter/types.go` gets `ParseSnippet`, `Check` (calls `analysis.CheckType`) and `ImportType`, all headless
+  with fakes; the view only renders the report.
+- **i18n:** new message ids `types.import.*`, `types.copyPrompt.*`, `types.check.*` in `en` and `de`.
+
+**fine changes:** none expected. The dialog uses the multi-line entry, the file dialog (`ShowFileOpen`), a grid and status
+badges that exist already. If the multi-line entry cannot paste or show long JSON comfortably, note it in `FINE-NOTES.md`
+and fix it in fine (dirty workflow).
+
+**Tests.**
+- `analysis`: table tests for `CheckType` (bad enum, bad regex, redaction placeholder, template with `..`, id collision,
+  false positive against a second type), using `testdata/` samples.
+- `prompts`: a test checks that the enum values in the prompt match the Go constants and that the worked example passes `CheckType`.
+- `ui/presenter`: import flow with fakes (valid, invalid, replace, envelope and bare form, defaults filled).
+- Quality check with real LLM output is manual: the user runs the skill on 3 to 5 redacted samples and reports the hit rate.
+
 ## 4. Architecture
 
 ```
 domain/          Project, DocumentType, Rule, Template (parse, evaluate, validate), LibraryEntry, InboxItem
-analysis/        pure Go: dates, classify (rules, fingerprint, tfidf), fields, dedupe; table-driven tests
+analysis/        pure Go: dates, classify (rules, fingerprint, tfidf), fields, dedupe, typecheck (P6); table-driven tests
+prompts/         type-setup.md, the LLM prompt (embedded, shared with the skill; P6)
 pdf/             pdf.go (interface) + pdf_darwin.go/.m (cgo: render, text, OCR, NSDataDetector, pasteboard)
                  pdf_other.go (stub, ErrUnsupported); fake for tests
 store/           Store interface; json.go (sanity.json, atomic write via temp file + rename); fake.go
@@ -400,7 +532,7 @@ Each item is recorded in `FINE-NOTES.md`. These limits get documented and are no
 | **P3** | fine F1 to F4 and F6 to F8, then the keyboard flow on the sort screen and the Vim layer (`ui/presenter/keys.go`) as in section 2 | full keyboard operation, no mouse needed, including hjkl |
 | **P4** | `analysis/`: dates, rules, duplicates, invoice no. and amount; suggestions and candidates in the UI | a known type is filed with one key press |
 | **P5** | Learning (fingerprint, then TF-IDF), "learn rules from this document", the Types editor with live preview, F5 folder picker | a new type is learned after one document |
-| **P6** | Polish: `Cmd+Shift+V` from Finder, multiple projects, a correction log, a duplicate banner, performance (pre-rendering, Vision warm-up) | |
+| **P6** | Polish: `Cmd+Shift+V` from Finder, multiple projects, a shortcut overview dialog (see section 2), a correction log, a duplicate banner, performance (pre-rendering, Vision warm-up), **LLM-assisted type setup** (section 3a: skill and prompt, `analysis.CheckType`, import dialog on the Types page, `sanity types check` CLI) | import a type from a redacted sample via a JSON snippet, validated and dry-run before saving |
 
 **Agent split** (as the draft asks):
 - **Opus** plans, owns the interfaces in `domain`, `store` and `inbox`, does the sort presenter and the integration, and reviews.
@@ -481,6 +613,7 @@ Date label weights:
 | Filing | Only `Cmd+Enter` files. `Enter` never files, neither in the form nor in Vim normal mode. |
 | Vim + Cmd | Search, copy path, show in Finder (Vim `x`, as in Zed), undo, remove from inbox and re-sort always have a Cmd combination as well. |
 | Vim | The user uses Vim. A modal layer (normal mode after `Esc`, `hjkl`, `yy`, ...) is added on top of the Cmd shortcuts and is on by default. |
+| LLM type setup | Implemented in P6 (section 3a). The LLM only drafts a type as a JSON snippet from a redacted sample, at configuration time. sanity validates and dry-runs it, and never calls an LLM itself. |
 
 ## Test corpus
 
