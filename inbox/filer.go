@@ -20,6 +20,7 @@ type Request struct {
 	SHA256    string
 	TextHash  string
 	Overrides []string
+	Text      string // normalized analysis text, optional; passed to OnFiled
 }
 
 type filed struct {
@@ -33,6 +34,11 @@ type Filer struct {
 	Store store.Store
 	Now   func() time.Time
 	NewID func() string
+
+	// OnFiled runs after a successful filing (learning hook); OnUndone after
+	// an undo. Both are optional.
+	OnFiled  func(entry domain.LibraryEntry, text string)
+	OnUndone func(entry domain.LibraryEntry)
 
 	mu   sync.Mutex
 	undo []filed
@@ -79,6 +85,9 @@ func (f *Filer) File(ctx context.Context, r Request) (domain.LibraryEntry, error
 	f.mu.Lock()
 	f.undo = append(f.undo, filed{mv, e})
 	f.mu.Unlock()
+	if f.OnFiled != nil {
+		f.OnFiled(e, r.Text)
+	}
 	return e, nil
 }
 
@@ -107,6 +116,9 @@ func (f *Filer) UndoLast(ctx context.Context) (domain.LibraryEntry, error) {
 	f.mu.Unlock()
 	if err := f.Store.RemoveEntry(ctx, last.entry.ID); err != nil {
 		return domain.LibraryEntry{}, err
+	}
+	if f.OnUndone != nil {
+		f.OnUndone(last.entry)
 	}
 	return last.entry, nil
 }

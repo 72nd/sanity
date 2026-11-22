@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/72nd/sanity/analysis"
@@ -21,6 +20,7 @@ const maxAnalysedPages = 4
 type Result struct {
 	SHA256      string
 	TextHash    string
+	Text        string // normalized text, for learning at filing
 	Lang        string
 	Scan        bool // at least one page came from OCR or was classified as a scan
 	Suggestions []analysis.Suggestion
@@ -50,25 +50,14 @@ func (a *Analyzer) Analyze(ctx context.Context, path string) Result {
 		return r
 	}
 	r.SHA256 = sum
-	meta, err := a.PDF.Meta(path)
+	ex, err := ExtractText(ctx, a.PDF, path)
 	if err != nil {
 		r.Err = err
 		return r
 	}
-	var parts []string
-	for p := 0; p < min(meta.Pages, maxAnalysedPages); p++ {
-		if ctx.Err() != nil {
-			r.Err = ctx.Err()
-			return r
-		}
-		pt, err := a.PDF.Text(path, p)
-		if err != nil {
-			continue
-		}
-		r.Scan = r.Scan || pt.Scan || pt.Source == pdf.SourceVision
-		parts = append(parts, pt.Text)
-	}
-	text := analysis.Normalize(strings.Join(parts, "\n"))
+	meta, text := ex.Meta, ex.Text
+	r.Scan = ex.Scan
+	r.Text = text
 	r.TextHash = analysis.TextHash(text)
 	r.Lang = analysis.DetectLanguage(text)
 	now := time.Now
