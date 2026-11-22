@@ -63,6 +63,13 @@ func (f *Fake) SaveType(ctx context.Context, t domain.DocumentType) error {
 	return nil
 }
 
+// DeleteType implements Store.
+func (f *Fake) DeleteType(ctx context.Context, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.m.deleteType(id)
+}
+
 // AddEntry implements Store.
 func (f *Fake) AddEntry(ctx context.Context, e domain.LibraryEntry) error {
 	f.mu.Lock()

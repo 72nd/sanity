@@ -18,6 +18,9 @@ type Store interface {
 	Types(ctx context.Context) ([]domain.DocumentType, error)
 	// SaveType inserts or replaces a document type by id.
 	SaveType(ctx context.Context, t domain.DocumentType) error
+	// DeleteType removes a document type by id. An unknown id is an error;
+	// library entries of the type are kept.
+	DeleteType(ctx context.Context, id string) error
 	// AddEntry appends a library entry.
 	AddEntry(ctx context.Context, e domain.LibraryEntry) error
 	// RemoveEntry removes a library entry by id.

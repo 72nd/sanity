@@ -34,6 +34,15 @@ func (m *memory) saveType(t domain.DocumentType) {
 	m.p.Types = append(m.p.Types, t)
 }
 
+func (m *memory) deleteType(id string) error {
+	i := slices.IndexFunc(m.p.Types, func(t domain.DocumentType) bool { return t.ID == id })
+	if i < 0 {
+		return fmt.Errorf("document type %q not found", id)
+	}
+	m.p.Types = slices.Delete(m.p.Types, i, i+1)
+	return nil
+}
+
 func (m *memory) addEntry(e domain.LibraryEntry) error {
 	if m.indexOf(e.ID) >= 0 {
 		return fmt.Errorf("library entry %q already exists", e.ID)

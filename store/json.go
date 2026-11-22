@@ -95,6 +95,13 @@ func (j *JSON) SaveType(ctx context.Context, t domain.DocumentType) error {
 	})
 }
 
+// DeleteType implements Store.
+func (j *JSON) DeleteType(ctx context.Context, id string) error {
+	return j.mutate(func(m *memory) error {
+		return m.deleteType(id)
+	})
+}
+
 // AddEntry implements Store.
 func (j *JSON) AddEntry(ctx context.Context, e domain.LibraryEntry) error {
 	return j.mutate(func(m *memory) error {

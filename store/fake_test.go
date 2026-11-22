@@ -54,6 +54,20 @@ func testStoreCRUD(t *testing.T, s Store) {
 		t.Fatalf("insert: new type not last, got %q", last.ID)
 	}
 
+	// DeleteType removes by id, unknown ids are an error.
+	if err := s.DeleteType(ctx, "test-type"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteType(ctx, "test-type"); err == nil {
+		t.Fatal("second DeleteType: want error")
+	}
+	if got, _ := s.Types(ctx); len(got) != len(types) {
+		t.Fatalf("DeleteType: want %d types, got %d", len(types), len(got))
+	}
+	if err := s.SaveType(ctx, added); err != nil { // the entry below refers to it
+		t.Fatal(err)
+	}
+
 	// AddEntry appends, duplicate ids are rejected.
 	before, _ := s.Library(ctx)
 	entry := domain.LibraryEntry{ID: "test-entry", TypeID: "test-type", Path: "x/test.pdf", Date: time.Date(2025, 4, 1, 0, 0, 0, 0, time.UTC)}

@@ -210,3 +210,28 @@ func TestJSONFailedWriteKeepsMemoryState(t *testing.T) {
 		t.Fatalf("failed write must not change memory, got %d entries", len(lib))
 	}
 }
+
+func TestJSONDeleteTypePersists(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	j, err := OpenJSON(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"a", "b"} {
+		if err := j.SaveType(ctx, domain.DocumentType{ID: id, Name: id}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := j.DeleteType(ctx, "a"); err != nil {
+		t.Fatal(err)
+	}
+	j2, err := OpenJSON(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	types, _ := j2.Types(ctx)
+	if len(types) != 1 || types[0].ID != "b" {
+		t.Fatalf("after reopen: %+v", types)
+	}
+}
