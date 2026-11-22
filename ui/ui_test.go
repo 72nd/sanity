@@ -6,10 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
 
 	"github.com/72nd/fine/shell"
 	"github.com/72nd/fine/shell/i18n"
+	"github.com/72nd/fine/widgets"
 	"github.com/72nd/sanity/inbox"
 	"github.com/72nd/sanity/locales"
 	"github.com/72nd/sanity/pdf"
@@ -38,7 +40,7 @@ func newShell(t *testing.T, pdfs int) (*shell.Shell, *presenter.Sort, *presenter
 	lib := presenter.NewLibrary(st, i18n.T)
 	sp := presenter.NewSort(st, q, inbox.NewFiler(root, st), pdf.NewFake(), i18n.T)
 	act := NewSortActions()
-	sh := shell.New(app, shell.Config{TitleKey: "app.title", Pages: Pages(lib, sp, q, act, presenter.NewKeys(nil)), Width: 1200, Height: 760})
+	sh := shell.New(app, shell.Config{TitleKey: "app.title", Pages: Pages(lib, sp, q, act, presenter.NewKeys(nil), presenter.NewTypes(st, i18n.T)), Width: 1200, Height: 760})
 	for _, c := range Commands(act) {
 		if err := sh.Registry.Register(c); err != nil {
 			t.Fatal(err)
@@ -100,5 +102,48 @@ func TestVimNormalModeMovesThroughQueue(t *testing.T) {
 	settle()
 	if back, _ := sp.Current(); back.ID != first.ID {
 		t.Errorf("k did not move back, current %q", back.Name)
+	}
+}
+
+// The form card on the sort page stays inside the window and keeps a usable
+// width at narrow and wide window widths.
+func TestSortFormCardInsideWindow(t *testing.T) {
+	for _, w := range []float32{900, 1100, 1200} {
+		sh, _, _ := newShell(t, 2)
+		sh.Show("sort")
+		settle()
+		sh.Win.Resize(fyne.NewSize(w, 760))
+		settle()
+		var card *widgets.Card
+		walk(sh.Win.Content(), func(o fyne.CanvasObject) {
+			if c, ok := o.(*widgets.Card); ok {
+				card = c
+			}
+		})
+		if card == nil {
+			t.Fatalf("w=%v: form card not found", w)
+		}
+		left := fyne.CurrentApp().Driver().AbsolutePositionForObject(card).X
+		right := left + card.Size().Width
+		if right > w {
+			t.Errorf("w=%v: form card right edge %v is outside the window", w, right)
+		}
+		if card.Size().Width < 290 {
+			t.Errorf("w=%v: form card width %v < 290", w, card.Size().Width)
+		}
+	}
+}
+
+func walk(o fyne.CanvasObject, fn func(fyne.CanvasObject)) {
+	fn(o)
+	switch v := o.(type) {
+	case fyne.Widget:
+		for _, c := range test.WidgetRenderer(v).Objects() {
+			walk(c, fn)
+		}
+	case *fyne.Container:
+		for _, c := range v.Objects {
+			walk(c, fn)
+		}
 	}
 }

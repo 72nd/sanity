@@ -11,7 +11,7 @@ import (
 func TestArchitecture(t *testing.T) {
 	archcheck.Run(t, archcheck.Rules{
 		Root:          ".",
-		NoUIDirs:      []string{"domain", "store", "inbox", "pdf"},
+		NoUIDirs:      []string{"domain", "store", "inbox", "pdf", "clipboard"},
 		PresenterDirs: []string{"ui/presenter"},
 		AppDirs:       []string{"."},
 		ThemeDir:      "theme", // this repo has none, so no color literals are allowed anywhere

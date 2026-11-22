@@ -211,7 +211,7 @@ func (p *Sort) File(ctx context.Context) (domain.LibraryEntry, error) {
 		return domain.LibraryEntry{}, err
 	}
 	res, _ := p.result(cur.ID)
-	e, err := p.filer.File(ctx, inbox.Request{Path: cur.Path, Type: typ, Values: p.values(), SHA256: sum, TextHash: res.TextHash, Overrides: p.overrides()})
+	e, err := p.filer.File(ctx, inbox.Request{Path: cur.Path, Type: typ, Values: p.values(), SHA256: sum, TextHash: res.TextHash, Text: res.Text, Overrides: p.overrides()})
 	if err != nil {
 		return domain.LibraryEntry{}, err
 	}

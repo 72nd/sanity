@@ -17,6 +17,7 @@ type SortActions struct {
 	Import                               func(paths ...string)
 	CopyRel, CopyAbs, Reveal, Remove     func()
 	First, Last                          func()
+	PasteFiles                           func() // import files copied in Finder
 	// SetMode is called with true when the keyboard focus left the form (Vim
 	// normal mode) and with false when a field has it again (insert mode).
 	SetMode func(normal bool)
@@ -35,7 +36,7 @@ func NewSortActions() *SortActions {
 		ZoomIn: nop, ZoomOut: nop, ZoomFit: nop,
 		ScrollDown: nop, ScrollUp: nop, Search: nop,
 		Import: func(...string) {}, Focus: func(string) {}, shown: nop,
-		CopyRel: nop, CopyAbs: nop, Reveal: nop, Remove: nop, First: nop, Last: nop, SetMode: func(bool) {},
+		CopyRel: nop, CopyAbs: nop, Reveal: nop, Remove: nop, First: nop, Last: nop, PasteFiles: nop, SetMode: func(bool) {},
 	}
 }
 
@@ -55,6 +56,7 @@ func Commands(a *SortActions) []shell.Command {
 		{ID: "sort.search", Title: t("cmd.sort.search"), Shortcut: shell.Ctrl(fyne.KeyF), Run: func() { a.Search() }},
 		{ID: "sort.copyrel", Title: t("cmd.sort.copyrel"), Shortcut: mod(fyne.KeyC, fyne.KeyModifierShift), Run: func() { a.CopyRel() }},
 		{ID: "sort.copyabs", Title: t("cmd.sort.copyabs"), Shortcut: mod(fyne.KeyC, fyne.KeyModifierAlt), Run: func() { a.CopyAbs() }},
+		{ID: "sort.paste", Title: t("cmd.sort.paste"), Shortcut: mod(fyne.KeyV, fyne.KeyModifierShift), Run: func() { a.PasteFiles() }},
 		{ID: "sort.reveal", Title: t("cmd.sort.reveal"), Shortcut: shell.Ctrl(fyne.KeyR), Run: func() { a.Reveal() }},
 		{ID: "sort.remove", Title: t("cmd.sort.remove"), Shortcut: mod(fyne.KeyBackspace, fyne.KeyModifierShift), Run: func() { a.Remove() }},
 		{ID: "sort.zoomin", Title: t("cmd.sort.zoomin"), Shortcut: shell.Ctrl(fyne.KeyEqual), Run: func() { a.ZoomIn() }},

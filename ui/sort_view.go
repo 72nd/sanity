@@ -394,8 +394,11 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	))
 	main := widgets.HSplit(widgets.Border(zoomBar, nil, nil, nil, w.preview), right)
 	main.SetOffset(0.66)
+	main.SetMinLeading(280)  // preview
+	main.SetMinTrailing(320) // form card: never clipped, the preview shrinks first
 	root := widgets.HSplit(side, main)
 	root.SetOffset(0.17)
+	root.SetMinLeading(180) // queue
 
 	act.shown = func() { // the shell calls this on every show of the page
 		if cur, ok := p.Current(); ok && shownID != cur.ID {

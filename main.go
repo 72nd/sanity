@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/72nd/fine/shell"
 	"github.com/72nd/fine/shell/i18n"
+	"github.com/72nd/sanity/domain"
 	"github.com/72nd/sanity/inbox"
 	"github.com/72nd/sanity/locales"
 	"github.com/72nd/sanity/pdf"
@@ -53,16 +55,34 @@ func main() {
 
 	engine := pdf.NewEngine()
 	lib := presenter.NewLibrary(st, i18n.T)
-	sortP := presenter.NewSort(st, q, inbox.NewFiler(root, st), engine, i18n.T)
+	learner := inbox.NewLearner(root, st, engine)
+	go func() { // fill the learned index from the library in the background
+		if err := learner.Rebuild(context.Background()); err != nil {
+			fmt.Fprintln(os.Stderr, "sanity: learning:", err)
+		}
+	}()
+	filer := inbox.NewFiler(root, st)
+	filer.OnFiled = func(e domain.LibraryEntry, text string) {
+		if err := learner.Learn(e.TypeID, e.SHA256, text); err != nil {
+			fmt.Fprintln(os.Stderr, "sanity: learning:", err)
+		}
+	}
+	filer.OnUndone = func(e domain.LibraryEntry) {
+		if err := learner.Forget(e.SHA256); err != nil {
+			fmt.Fprintln(os.Stderr, "sanity: learning:", err)
+		}
+	}
+	sortP := presenter.NewSort(st, q, filer, engine, i18n.T)
 	act := ui.NewSortActions()
-	sortP.SetAnalyzer(&inbox.Analyzer{PDF: engine, Store: st})
+	sortP.SetAnalyzer(&inbox.Analyzer{PDF: engine, Store: st, Learned: learner.Index()})
 
 	a := app.NewWithID("com.72nd.sanity")
 	sh := shell.New(a, shell.Config{
 		TitleKey: "app.title",
-		Pages:    ui.Pages(lib, sortP, q, act, presenter.NewKeys(nil)),
+		Pages:    ui.Pages(lib, sortP, q, act, presenter.NewKeys(nil), presenter.NewTypes(st, i18n.T)),
 		Width:    1280,
 		Height:   800,
+		Settings: []shell.SettingsSection{ui.VimSettings()},
 	})
 	for _, c := range ui.Commands(act) {
 		if err := sh.Registry.Register(c); err != nil {
