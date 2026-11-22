@@ -41,5 +41,20 @@
   "cmd.sort.zoomin": "Vorschau vergrößern",
   "cmd.sort.zoomout": "Vorschau verkleinern",
   "cmd.sort.zoomfit": "Vorschau an Breite anpassen",
-  "sort.zoom.fit": "Breite anpassen"
+  "sort.zoom.fit": "Breite anpassen",
+  "sort.badge.suggested": "Vorschlag",
+  "sort.duplicate": "Sieht aus wie ein Duplikat von {{.Path}} ({{.Reason}})",
+  "sort.date.fallback": "Ersatz (Dateidatum)",
+  "cmd.sort.search": "Typen suchen",
+  "cmd.sort.copyrel": "Relativen Pfad kopieren",
+  "cmd.sort.copyabs": "Absoluten Pfad kopieren",
+  "cmd.sort.reveal": "Im Finder zeigen",
+  "cmd.sort.remove": "Aus dem Eingang entfernen",
+  "sort.remove.title": "Dokument entfernen",
+  "sort.remove.message": "{{.Name}} in den Papierkorb legen?",
+  "sort.remove.confirm": "In den Papierkorb",
+  "toast.copied": "Kopiert: {{.Path}}",
+  "error.sort.nothing": "Es ist kein Dokument geöffnet.",
+  "vim.mode.normal": "NORMAL",
+  "vim.mode.insert": "INSERT"
 }

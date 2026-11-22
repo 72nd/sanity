@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/driver/desktop"
 	fynetheme "fyne.io/fyne/v2/theme"
 
 	"github.com/72nd/fine/shell"
@@ -19,20 +18,6 @@ import (
 	"github.com/72nd/sanity/ui/presenter"
 )
 
-// SortActions are the sort page's operations that commands call. They are set
-// while the page is built and are no-ops before.
-type SortActions struct {
-	File, Undo, Skip, SkipBack, AddFiles func()
-	ZoomIn, ZoomOut, ZoomFit             func()
-}
-
-func nop() {}
-
-// NewSortActions returns actions that do nothing until the page exists.
-func NewSortActions() *SortActions {
-	return &SortActions{nop, nop, nop, nop, nop, nop, nop, nop}
-}
-
 func queueColumns() []grid.Column[inbox.Item] {
 	return []grid.Column[inbox.Item]{
 		{ID: "name", Title: i18n.T("col.file"), Width: 220,
@@ -41,99 +26,210 @@ func queueColumns() []grid.Column[inbox.Item] {
 	}
 }
 
+// sortWidgets are the widgets of the sort page that commands and the Vim layer
+// reach into.
+type sortWidgets struct {
+	queue   *grid.Grid[inbox.Item]
+	preview *widgets.ImageView
+	picker  *widgets.Picker
+	date    *widgets.DateEntry
+	invoice *widgets.Entry
+	amount  *widgets.Entry
+}
+
 // SortPage builds the work screen: queue, PDF preview and the sort form.
 func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActions) fyne.CanvasObject {
-	queue := grid.New(queueColumns())
-	queue.AccessibleLabel = i18n.T("nav.sort")
-	queue.StretchLast = true
-
-	preview := widgets.NewImageView()
-
-	typeBox := widgets.NewComboBox(nil, nil)
-	typeBox.PlaceHolder = i18n.T("sort.type.placeholder")
-	date := widgets.NewDateEntry()
-	invoice := widgets.NewEntry()
-	amount := widgets.NewEntry()
+	w := &sortWidgets{
+		queue:   grid.New(queueColumns()),
+		preview: widgets.NewImageView(),
+		picker:  widgets.NewPicker(nil),
+		date:    widgets.NewDateEntry(),
+		invoice: widgets.NewEntry(),
+		amount:  widgets.NewEntry(),
+	}
+	w.queue.AccessibleLabel = i18n.T("nav.sort")
+	w.queue.StretchLast = true
+	w.picker.PlaceHolder = i18n.T("sort.type.placeholder")
 	pathLabel := widgets.NewLabel("", widgets.LabelMuted)
 	hint := widgets.NewLabel("", widgets.LabelMuted)
+	dupLabel := widgets.NewLabel("", widgets.LabelBody)
+	dupLabel.Hide()
 
-	var syncing bool // true while code fills the fields
+	var syncing bool // true while code, not the user, fills the fields
+	shownID := ""    // the document whose preview is on screen
 
-	typeIDs := map[string]string{} // option text -> type id
-	fillTypes := func() {
-		var opts []string
-		for _, t := range p.Types() {
-			typeIDs[t.Name] = t.ID
-			opts = append(opts, t.Name)
-		}
-		typeBox.SetOptions(opts)
-	}
+	notify := func(st theme.Status, msg string) { sh.Toasts.Notify(st, msg, 4*time.Second) }
 
 	refreshForm := func() {
-		rel, ok := p.PathPreview()
-		switch {
-		case ok:
-			pathLabel.Text = "→ " + rel
-			hint.Text = i18n.T("sort.hint.file")
-		default:
-			pathLabel.Text = ""
+		if rel, ok := p.PathPreview(); ok {
+			pathLabel.Text, hint.Text = "→ "+rel, i18n.T("sort.hint.file")
+		} else {
+			pathLabel.Text, hint.Text = "", ""
 			if m := p.Missing(); len(m) > 0 {
 				hint.Text = i18n.T("sort.hint.missing", "Fields", joinComma(m))
-			} else {
-				hint.Text = ""
 			}
+		}
+		if e, why, ok := p.Duplicate(); ok {
+			dupLabel.Text = i18n.T("sort.duplicate", "Path", e.Path, "Reason", why)
+			dupLabel.Show()
+		} else {
+			dupLabel.Hide()
 		}
 		pathLabel.Refresh()
 		hint.Refresh()
+		dupLabel.Refresh()
 	}
 
-	var loadPreview func()
-	showCurrent := func() {
+	setText := func(e *widgets.Entry, s string) {
+		if e.Text != s {
+			e.SetText(s)
+		}
+	}
+	// syncFields pushes the presenter's form (including analysis prefill) into
+	// the widgets without triggering their callbacks.
+	syncFields := func() {
 		syncing = true
-		typeBox.SetSelected("")
-		date.SetDate(nil)
-		invoice.SetText("")
-		amount.SetText("")
+		items := make([]widgets.PickerItem, 0, len(p.Types()))
+		for _, c := range p.TypeChoices() {
+			it := widgets.PickerItem{ID: c.ID, Label: c.Name, Score: c.Score}
+			if c.Confident {
+				it.Badge, it.BadgeStatus = i18n.T("sort.badge.suggested"), theme.StatusSuccess
+			}
+			items = append(items, it)
+		}
+		w.picker.SetItems(items)
+		f := p.Form()
+		w.picker.Preselect(f.TypeID)
+		var cands []widgets.DateCandidate
+		for _, d := range p.DateChoices() {
+			label := d.Label
+			if d.Fallback {
+				label = i18n.T("sort.date.fallback")
+			}
+			cands = append(cands, widgets.DateCandidate{Date: d.Date, Label: label})
+		}
+		w.date.SetCandidates(cands)
+		if f.Date.IsZero() {
+			w.date.SetDate(nil)
+		} else {
+			d := f.Date
+			w.date.SetDate(&d)
+		}
+		setText(w.invoice, f.Invoice)
+		setText(w.amount, f.Amount)
 		syncing = false
 		refreshForm()
-		loadPreview()
-		items := p.Items()
-		queue.SetItems(items)
-		sh.Status.SetRight(i18n.T("sort.status.open", "Count", itoa(len(items))))
 	}
 
-	loadPreview = func() {
+	saveView := func() {
+		off := w.preview.ScrollOffset()
+		p.SaveView(shownID, presenter.ViewState{Zoom: w.preview.Zoom(), X: float64(off.X), Y: float64(off.Y)})
+	}
+	zoomLabel := widgets.NewLabel("100 %", widgets.LabelMuted)
+	showZoom := func() {
+		zoomLabel.Text = strconv.Itoa(int(w.preview.Zoom()*100+0.5)) + " %"
+		zoomLabel.Refresh()
+	}
+	w.preview.OnZoomChanged = func(float64) { showZoom() }
+
+	loadPreview := func() {
 		cur, ok := p.Current()
 		if !ok {
-			preview.SetImage(nil)
-			preview.SetLoading(false)
+			w.preview.SetImage(nil)
+			w.preview.SetLoading(false)
 			return
 		}
-		preview.SetLoading(true)
+		w.preview.SetLoading(true)
 		go func() { // rendering never blocks the UI thread
 			img, err := p.Preview(cur.Path)
 			fyne.Do(func() {
 				if c, ok := p.Current(); !ok || c.ID != cur.ID {
 					return // moved on meanwhile
 				}
-				preview.SetLoading(false)
+				w.preview.SetLoading(false)
 				if err != nil {
-					sh.Toasts.Notify(theme.StatusDanger, err.Error(), 5*time.Second)
+					notify(theme.StatusDanger, err.Error())
 					return
 				}
-				preview.SetImage(img)
+				w.preview.SetImage(img)
+				v := p.View(cur.ID) // zoom and scroll are remembered per document
+				w.preview.SetZoom(v.Zoom)
+				w.preview.SetScrollOffset(fyne.NewPos(float32(v.X), float32(v.Y)))
+				showZoom()
 			})
 		}()
 	}
 
-	typeBox.OnChanged = func(s string) {
-		if syncing {
-			return
-		}
-		p.SetType(typeIDs[s])
-		refreshForm()
+	analyse := func() {
+		p.Analyse(context.Background(), func(id string) {
+			fyne.Do(func() {
+				if cur, ok := p.Current(); ok && cur.ID == id {
+					p.Prefill()
+					syncFields()
+				}
+				w.queue.SetItems(p.Items())
+			})
+		})
 	}
-	date.OnChanged = func(t *time.Time) {
+
+	// showDoc switches the page to the current document.
+	showDoc := func() {
+		saveView()
+		cur, ok := p.Current()
+		shownID = ""
+		if ok {
+			shownID = cur.ID
+		}
+		syncFields()
+		loadPreview()
+		items := p.Items()
+		w.queue.SetItems(items)
+		sh.Status.SetRight(i18n.T("sort.status.open", "Count", strconv.Itoa(len(items))))
+		if ok {
+			act.SetMode(false)
+			w.picker.Focus()
+		}
+		analyse()
+	}
+
+	// Keyboard flow: Enter accepts a field and moves to the next empty one.
+	focusNext := func(from string) {
+		order := []string{"type", "date", "invoice", "amount"}
+		start := 0
+		for i, n := range order {
+			if n == from {
+				start = i + 1
+			}
+		}
+		f := p.Form()
+		for _, n := range order[start:] {
+			switch {
+			case n == "date" && f.Date.IsZero():
+				w.date.Focus()
+				return
+			case n == "invoice" && f.Invoice == "":
+				sh.Focus(w.invoice)
+				return
+			case n == "amount" && f.Amount == "":
+				sh.Focus(w.amount)
+				return
+			}
+		}
+	}
+	normal := func() { act.SetMode(true) }
+	w.picker.OnEscape, w.date.OnEscape, w.invoice.OnEscape, w.amount.OnEscape = normal, normal, normal, normal
+	w.picker.OnChanged = func(id string) {
+		if !syncing {
+			p.SetType(id)
+			refreshForm()
+		}
+	}
+	w.picker.OnCommitted = func(id string) {
+		p.SetType(id)
+		refreshForm()
+		focusNext("type")
+	}
+	w.date.OnChanged = func(t *time.Time) {
 		if syncing {
 			return
 		}
@@ -142,32 +238,32 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		}
 		refreshForm()
 	}
-	invoice.OnChanged = func(s string) {
+	w.date.OnSubmitted = func(*time.Time) { focusNext("date") }
+	w.invoice.OnChanged = func(s string) {
 		if !syncing {
 			p.SetInvoice(s)
 			refreshForm()
 		}
 	}
-	amount.OnChanged = func(s string) {
+	w.invoice.OnSubmitted = func(string) { focusNext("invoice") }
+	w.amount.OnChanged = func(s string) {
 		if !syncing {
 			p.SetAmount(s)
 			refreshForm()
 		}
 	}
-
-	queue.OnActivated = func(it *inbox.Item) {
+	w.queue.OnActivated = func(it *inbox.Item) {
 		if it != nil && p.Open(it.ID) {
-			showCurrent()
+			showDoc()
 		}
 	}
-
-	notify := func(st theme.Status, msg string) { sh.Toasts.Notify(st, msg, 4*time.Second) }
 
 	act.File = func() {
 		if !p.CanFile() {
 			notify(theme.StatusWarning, i18n.T("error.sort.incomplete"))
 			return
 		}
+		saveView()
 		go func() {
 			e, err := p.File(context.Background())
 			fyne.Do(func() {
@@ -176,7 +272,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 					return
 				}
 				notify(theme.StatusSuccess, i18n.T("toast.filed", "Path", e.Path))
-				showCurrent()
+				showDoc()
 			})
 		}()
 	}
@@ -195,58 +291,118 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 				if _, ok := p.Current(); !ok {
 					p.Step(0)
 				}
-				showCurrent()
+				showDoc()
 			})
 		}()
 	}
-	act.Skip = func() { p.Step(1); showCurrent() }
-	act.SkipBack = func() { p.Step(-1); showCurrent() }
+	act.Skip = func() { p.Step(1); showDoc() }
+	act.SkipBack = func() { p.Step(-1); showDoc() }
+	act.Import = func(paths ...string) {
+		if p.Import(paths...) {
+			showDoc()
+		}
+	}
 	act.AddFiles = func() {
 		widgets.ShowFileOpen(sh.Win, widgets.FileDialogOptions{Extensions: []string{".pdf"}}, func(r io.ReadCloser, path string) {
 			r.Close()
-			if p.Import(path) {
-				showCurrent()
-			}
+			act.Import(path)
 		})
 	}
-	act.ZoomIn, act.ZoomOut, act.ZoomFit = preview.ZoomIn, preview.ZoomOut, preview.FitWidth
+	act.ZoomIn, act.ZoomOut, act.ZoomFit = w.preview.ZoomIn, w.preview.ZoomOut, w.preview.FitWidth
+	act.ScrollDown = func() { w.preview.ScrollHalfPage(true) }
+	act.ScrollUp = func() { w.preview.ScrollHalfPage(false) }
+	act.Focus = func(field string) {
+		act.SetMode(false)
+		switch field {
+		case "type":
+			w.picker.Focus()
+		case "date":
+			w.date.Focus()
+		default:
+			focusNext("")
+		}
+	}
+	act.Search = func() { act.SetMode(false); w.picker.Focus() }
+	act.First = func() {
+		if p.Jump(true) {
+			showDoc()
+		}
+	}
+	act.Last = func() {
+		if p.Jump(false) {
+			showDoc()
+		}
+	}
+	act.CopyRel = func() { copyPath(sh, p, false, notify) }
+	act.CopyAbs = func() { copyPath(sh, p, true, notify) }
+	act.Reveal = func() {
+		if path, ok := p.RevealPath(); ok {
+			if err := inbox.Reveal(path); err != nil {
+				notify(theme.StatusDanger, err.Error())
+			}
+		}
+	}
+	act.Remove = func() {
+		cur, ok := p.Current()
+		if !ok {
+			return
+		}
+		widgets.ShowConfirm(sh.Win, i18n.T("sort.remove.title"), i18n.T("sort.remove.message", "Name", cur.Name),
+			i18n.T("sort.remove.confirm"), true, func(yes bool) {
+				if !yes {
+					return
+				}
+				go func() {
+					err := p.Remove()
+					fyne.Do(func() {
+						if err != nil {
+							notify(theme.StatusDanger, err.Error())
+							return
+						}
+						showDoc()
+					})
+				}()
+			})
+	}
 
 	fileBtn := widgets.NewButton(i18n.T("sort.file"), widgets.ButtonPrimary, func() { act.File() })
 	skipBtn := widgets.NewButton(i18n.T("sort.skip"), widgets.ButtonSecondary, func() { act.Skip() })
 	addBtn := widgets.NewButton(i18n.T("sort.add"), widgets.ButtonSecondary, func() { act.AddFiles() })
 
 	form := widgets.VBox(
-		widgets.NewFormRow(i18n.T("sort.type"), typeBox),
-		widgets.NewFormRow(i18n.T("sort.date"), date),
-		widgets.NewFormRow(i18n.T("sort.invoice"), invoice),
-		widgets.NewFormRow(i18n.T("sort.amount"), amount),
+		dupLabel,
+		widgets.NewFormRow(i18n.T("sort.type"), w.picker),
+		widgets.NewFormRow(i18n.T("sort.date"), w.date),
+		widgets.NewFormRow(i18n.T("sort.invoice"), w.invoice),
+		widgets.NewFormRow(i18n.T("sort.amount"), w.amount),
 		pathLabel, hint,
 		widgets.HBox(fileBtn, skipBtn),
 	)
-	side := widgets.Border(nil, widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeTop, 6, addBtn), nil, nil, queue)
+	side := widgets.Border(nil, widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeTop, 6, addBtn), nil, nil, w.queue)
 	right := widgets.Scroll(widgets.PagePadded(widgets.NewCard(i18n.T("sort.form.title"), "", form)))
-	zoomLabel := widgets.NewLabel("100 %", widgets.LabelMuted)
-	preview.OnZoomChanged = func(z float64) {
-		zoomLabel.Text = strconv.Itoa(int(z*100+0.5)) + " %"
-		zoomLabel.Refresh()
-	}
+
 	zoomBtn := func(icon fyne.ThemeIconName, fn func()) *widgets.Button {
 		b := widgets.NewButton("", widgets.ButtonToolbar, fn)
 		b.SetIcon(icon)
 		return b
 	}
-	fitBtn := widgets.NewButton(i18n.T("sort.zoom.fit"), widgets.ButtonToolbar, func() { act.ZoomFit() })
 	zoomBar := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, 4, widgets.HBox(
 		zoomBtn(fynetheme.IconNameContentRemove, func() { act.ZoomOut() }),
 		zoomLabel,
 		zoomBtn(fynetheme.IconNameContentAdd, func() { act.ZoomIn() }),
-		fitBtn,
+		widgets.NewButton(i18n.T("sort.zoom.fit"), widgets.ButtonToolbar, func() { act.ZoomFit() }),
 	))
-	main := widgets.HSplit(widgets.Border(zoomBar, nil, nil, nil, preview), right)
+	main := widgets.HSplit(widgets.Border(zoomBar, nil, nil, nil, w.preview), right)
 	main.SetOffset(0.66)
 	root := widgets.HSplit(side, main)
 	root.SetOffset(0.17)
 
+	act.shown = func() { // the shell calls this on every show of the page
+		if cur, ok := p.Current(); ok && shownID != cur.ID {
+			showDoc()
+		}
+	}
+	act.fields = w
 	go func() {
 		err := p.LoadTypes(context.Background())
 		fyne.Do(func() {
@@ -254,19 +410,19 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 				notify(theme.StatusDanger, i18n.T("toast.load.failed"))
 				return
 			}
-			fillTypes()
 			p.Step(0)
-			showCurrent()
+			showDoc()
 		})
 	}()
 	q.SetOnChange(func() {
 		fyne.Do(func() {
 			if _, ok := p.Current(); !ok {
 				p.Step(0)
-				showCurrent()
+				showDoc()
 				return
 			}
-			queue.SetItems(p.Items())
+			w.queue.SetItems(p.Items())
+			analyse()
 		})
 	})
 	return root
@@ -283,23 +439,14 @@ func joinComma(s []string) string {
 	return out
 }
 
-func itoa(n int) string { return strconv.Itoa(n) }
-
-// Commands returns the sort page's commands; each is reachable through the
-// palette and has the shortcut from PLAN.md section 2.
-func Commands(a *SortActions) []shell.Command {
-	mod := func(k fyne.KeyName, m fyne.KeyModifier) *desktop.CustomShortcut {
-		return &desktop.CustomShortcut{KeyName: k, Modifier: fyne.KeyModifierShortcutDefault | m}
+// copyPath puts the target path of the current (or last filed) document on the
+// clipboard.
+func copyPath(sh *shell.Shell, p *presenter.Sort, abs bool, notify func(theme.Status, string)) {
+	path, ok := p.CopyPath(abs)
+	if !ok {
+		notify(theme.StatusWarning, i18n.T("error.sort.incomplete"))
+		return
 	}
-	t := func(id string) func() string { return func() string { return i18n.T(id) } }
-	return []shell.Command{
-		{ID: "sort.file", Title: t("cmd.sort.file"), Shortcut: shell.Ctrl(fyne.KeyReturn), Run: func() { a.File() }},
-		{ID: "sort.undo", Title: t("cmd.sort.undo"), Shortcut: mod(fyne.KeyZ, fyne.KeyModifierAlt), Run: func() { a.Undo() }},
-		{ID: "sort.next", Title: t("cmd.sort.next"), Shortcut: shell.Ctrl(fyne.KeyRightBracket), Run: func() { a.Skip() }},
-		{ID: "sort.prev", Title: t("cmd.sort.prev"), Shortcut: shell.Ctrl(fyne.KeyLeftBracket), Run: func() { a.SkipBack() }},
-		{ID: "sort.add", Title: t("cmd.sort.add"), Shortcut: shell.Ctrl(fyne.KeyO), Run: func() { a.AddFiles() }},
-		{ID: "sort.zoomin", Title: t("cmd.sort.zoomin"), Shortcut: shell.Ctrl(fyne.KeyEqual), Run: func() { a.ZoomIn() }},
-		{ID: "sort.zoomout", Title: t("cmd.sort.zoomout"), Shortcut: shell.Ctrl(fyne.KeyMinus), Run: func() { a.ZoomOut() }},
-		{ID: "sort.zoomfit", Title: t("cmd.sort.zoomfit"), Shortcut: shell.Ctrl(fyne.Key0), Run: func() { a.ZoomFit() }},
-	}
+	sh.App.Clipboard().SetContent(path)
+	notify(theme.StatusInfo, i18n.T("toast.copied", "Path", path))
 }

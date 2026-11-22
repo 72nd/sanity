@@ -280,3 +280,57 @@ func (p *Sort) View(id string) ViewState {
 	}
 	return ViewState{Zoom: 1}
 }
+
+// CopyPath returns the path to put on the clipboard: the evaluated target path
+// of the current document (relative to the project root, or absolute), or the
+// path of the document filed last when nothing is open.
+func (p *Sort) CopyPath(abs bool) (string, bool) {
+	rel, ok := p.PathPreview()
+	if !ok {
+		rel, ok = p.LastPath()
+	}
+	if !ok {
+		return "", false
+	}
+	if abs {
+		return filepath.Join(p.filer.Root, filepath.FromSlash(rel)), true
+	}
+	return rel, true
+}
+
+// RevealPath is the file to show in Finder: the current inbox file.
+func (p *Sort) RevealPath() (string, bool) {
+	cur, ok := p.Current()
+	return cur.Path, ok
+}
+
+// Remove moves the current document to the trash and drops it from the queue.
+// The view asks for confirmation first. Call it from a goroutine.
+func (p *Sort) Remove() error {
+	cur, ok := p.Current()
+	if !ok {
+		return errors.New(p.T("error.sort.nothing"))
+	}
+	if err := inbox.Trash(cur.Path); err != nil {
+		return err
+	}
+	p.queue.Remove(cur.ID)
+	p.current, p.form = "", Form{Text: map[string]string{}}
+	p.Step(0)
+	return nil
+}
+
+// Count is the number of documents in the queue.
+func (p *Sort) Count() int { return p.queue.Len() }
+
+// Jump opens the first (first=true) or last document of the queue.
+func (p *Sort) Jump(first bool) bool {
+	items := p.queue.Items()
+	if len(items) == 0 {
+		return false
+	}
+	if first {
+		return p.Open(items[0].ID)
+	}
+	return p.Open(items[len(items)-1].ID)
+}

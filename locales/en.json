@@ -41,5 +41,20 @@
   "cmd.sort.zoomin": "Zoom preview in",
   "cmd.sort.zoomout": "Zoom preview out",
   "cmd.sort.zoomfit": "Fit preview to width",
-  "sort.zoom.fit": "Fit width"
+  "sort.zoom.fit": "Fit width",
+  "sort.badge.suggested": "Suggested",
+  "sort.duplicate": "Looks like a duplicate of {{.Path}} ({{.Reason}})",
+  "sort.date.fallback": "Fallback (file date)",
+  "cmd.sort.search": "Search types",
+  "cmd.sort.copyrel": "Copy relative path",
+  "cmd.sort.copyabs": "Copy absolute path",
+  "cmd.sort.reveal": "Show in Finder",
+  "cmd.sort.remove": "Remove from inbox",
+  "sort.remove.title": "Remove document",
+  "sort.remove.message": "Move {{.Name}} to the trash?",
+  "sort.remove.confirm": "Move to trash",
+  "toast.copied": "Copied: {{.Path}}",
+  "error.sort.nothing": "No document is open.",
+  "vim.mode.normal": "NORMAL",
+  "vim.mode.insert": "INSERT"
 }

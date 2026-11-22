@@ -51,14 +51,16 @@ func main() {
 	}
 	defer stop()
 
+	engine := pdf.NewEngine()
 	lib := presenter.NewLibrary(st, i18n.T)
-	sortP := presenter.NewSort(st, q, inbox.NewFiler(root, st), pdf.NewEngine(), i18n.T)
+	sortP := presenter.NewSort(st, q, inbox.NewFiler(root, st), engine, i18n.T)
 	act := ui.NewSortActions()
+	sortP.SetAnalyzer(&inbox.Analyzer{PDF: engine, Store: st})
 
 	a := app.NewWithID("com.72nd.sanity")
 	sh := shell.New(a, shell.Config{
 		TitleKey: "app.title",
-		Pages:    ui.Pages(lib, sortP, q, act),
+		Pages:    ui.Pages(lib, sortP, q, act, presenter.NewKeys(nil)),
 		Width:    1280,
 		Height:   800,
 	})
@@ -67,5 +69,9 @@ func main() {
 			fmt.Fprintln(os.Stderr, "sanity:", err)
 		}
 	}
+	sh.SetOnDropped(func(paths []string) { // dropped files are shown at once
+		act.Import(paths...)
+		sh.Show("sort")
+	})
 	sh.Run()
 }
