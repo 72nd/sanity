@@ -37,11 +37,9 @@ func NewLibrary(s store.Store, t Translator) *Library { return &Library{store: s
 // Loaded reports whether data has been fetched.
 func (p *Library) Loaded() bool { return p.loaded }
 
-// Load fetches the library once. Call it from a goroutine; it may block.
+// Load fetches the library. Call it from a goroutine; it may block. The page
+// calls it on every visit, so documents filed meanwhile show up.
 func (p *Library) Load(ctx context.Context) error {
-	if p.loaded {
-		return nil
-	}
 	pr, err := p.store.Project(ctx)
 	if err != nil {
 		return err

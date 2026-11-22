@@ -1,0 +1,282 @@
+package presenter
+
+import (
+	"context"
+	"errors"
+	"image"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/72nd/sanity/domain"
+	"github.com/72nd/sanity/inbox"
+	"github.com/72nd/sanity/pdf"
+	"github.com/72nd/sanity/store"
+)
+
+// Form is the sort form of the current document.
+type Form struct {
+	TypeID  string
+	Date    time.Time // zero = not set
+	Invoice string
+	Amount  string
+	Text    map[string]string
+}
+
+// Sort is the presenter of the sort screen. It owns the queue position and the
+// form, and files through the inbox.Filer. It is not safe for concurrent use:
+// call it from the UI goroutine and run File/Undo results through fyne.Do.
+type Sort struct {
+	store store.Store
+	queue *inbox.Queue
+	filer *inbox.Filer
+	pdf   pdf.Engine
+	T     Translator
+
+	types   []domain.DocumentType
+	current string
+	form    Form
+	last    *domain.LibraryEntry
+
+	views         map[string]ViewState
+	analyzer      *inbox.Analyzer
+	state         *analysisState
+	suggestedType string
+	suggestedDate time.Time
+}
+
+// NewSort creates the presenter.
+func NewSort(s store.Store, q *inbox.Queue, f *inbox.Filer, e pdf.Engine, t Translator) *Sort {
+	return &Sort{store: s, queue: q, filer: f, pdf: e, T: t}
+}
+
+// LoadTypes fetches the document types. Call it from a goroutine.
+func (p *Sort) LoadTypes(ctx context.Context) error {
+	ts, err := p.store.Types(ctx)
+	if err != nil {
+		return err
+	}
+	p.types = ts
+	return nil
+}
+
+// Types returns the document types.
+func (p *Sort) Types() []domain.DocumentType { return p.types }
+
+// Items returns the queue.
+func (p *Sort) Items() []inbox.Item { return p.queue.Items() }
+
+// Current returns the open item.
+func (p *Sort) Current() (inbox.Item, bool) { return p.queue.Get(p.current) }
+
+// Open makes an item current and clears the form.
+func (p *Sort) Open(id string) bool {
+	if _, ok := p.queue.Get(id); !ok {
+		return false
+	}
+	p.current, p.form, p.last = id, Form{Text: map[string]string{}}, nil
+	p.suggestedType, p.suggestedDate = "", time.Time{}
+	p.Prefill()
+	return true
+}
+
+// Step opens the next (delta > 0) or previous item; it wraps around. It opens
+// the first item when none is current.
+func (p *Sort) Step(delta int) bool {
+	items := p.queue.Items()
+	if len(items) == 0 {
+		p.current = ""
+		return false
+	}
+	idx := -1
+	for i, it := range items {
+		if it.ID == p.current {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		return p.Open(items[0].ID)
+	}
+	n := len(items)
+	return p.Open(items[((idx+delta)%n+n)%n].ID)
+}
+
+// Import adds files or folders to the queue and opens the first new document,
+// so a file the user adds is shown at once. Files the watcher finds are added
+// to the queue directly and do not take the current document away. It reports
+// whether a new document was opened.
+func (p *Sort) Import(paths ...string) bool {
+	known := map[string]bool{}
+	for _, it := range p.queue.Items() {
+		known[it.ID] = true
+	}
+	p.queue.Add(paths...)
+	for _, it := range p.queue.Items() {
+		if !known[it.ID] {
+			return p.Open(it.ID)
+		}
+	}
+	return false
+}
+
+// Form returns a copy of the form.
+func (p *Sort) Form() Form { return p.form }
+
+// SetType selects the type by id.
+func (p *Sort) SetType(id string) { p.form.TypeID = id }
+
+// SetDate sets the document date.
+func (p *Sort) SetDate(d time.Time) { p.form.Date = d }
+
+// SetInvoice sets the invoice number.
+func (p *Sort) SetInvoice(s string) { p.form.Invoice = strings.TrimSpace(s) }
+
+// SetAmount sets the amount text.
+func (p *Sort) SetAmount(s string) { p.form.Amount = strings.TrimSpace(s) }
+
+// SetText sets a free-text placeholder value.
+func (p *Sort) SetText(label, s string) {
+	if p.form.Text == nil {
+		p.form.Text = map[string]string{}
+	}
+	p.form.Text[label] = strings.TrimSpace(s)
+}
+
+func (p *Sort) selectedType() (domain.DocumentType, bool) {
+	for _, t := range p.types {
+		if t.ID == p.form.TypeID {
+			return t, true
+		}
+	}
+	return domain.DocumentType{}, false
+}
+
+func (p *Sort) values() domain.Values {
+	cur, _ := p.Current()
+	typ, _ := p.selectedType()
+	return domain.Values{
+		Date: p.form.Date, Type: typ.Name, Invoice: p.form.Invoice, Amount: p.form.Amount,
+		Original: strings.TrimSuffix(cur.Name, filepath.Ext(cur.Name)), Text: p.form.Text,
+	}
+}
+
+// Missing lists the template placeholders that still need a value. It is
+// empty when no type is selected.
+func (p *Sort) Missing() []string {
+	typ, ok := p.selectedType()
+	if !ok {
+		return nil
+	}
+	tpl, err := domain.ParseTemplate(typ.PathTemplate)
+	if err != nil {
+		return nil
+	}
+	return tpl.Missing(p.values())
+}
+
+// PathPreview evaluates the target path (relative, with /). ok is false while
+// something is missing or the template is invalid.
+func (p *Sort) PathPreview() (string, bool) {
+	typ, ok := p.selectedType()
+	if !ok || p.current == "" {
+		return "", false
+	}
+	tpl, err := domain.ParseTemplate(typ.PathTemplate)
+	if err != nil {
+		return "", false
+	}
+	rel, err := tpl.Evaluate(p.values())
+	return rel, err == nil
+}
+
+// CanFile reports whether Cmd+Enter may file now.
+func (p *Sort) CanFile() bool {
+	_, ok := p.PathPreview()
+	return ok
+}
+
+// File files the current document and opens the next one. Call it from a
+// goroutine; it hashes and moves the file. It returns the new entry.
+func (p *Sort) File(ctx context.Context) (domain.LibraryEntry, error) {
+	cur, ok := p.Current()
+	typ, tok := p.selectedType()
+	if !ok || !tok {
+		return domain.LibraryEntry{}, errors.New(p.T("error.sort.incomplete"))
+	}
+	if !p.CanFile() {
+		return domain.LibraryEntry{}, errors.New(p.T("error.sort.incomplete"))
+	}
+	sum, err := inbox.FileHash(cur.Path)
+	if err != nil {
+		return domain.LibraryEntry{}, err
+	}
+	res, _ := p.result(cur.ID)
+	e, err := p.filer.File(ctx, inbox.Request{Path: cur.Path, Type: typ, Values: p.values(), SHA256: sum, TextHash: res.TextHash, Overrides: p.overrides()})
+	if err != nil {
+		return domain.LibraryEntry{}, err
+	}
+	p.queue.Remove(cur.ID)
+	p.current, p.form = "", Form{Text: map[string]string{}}
+	p.Step(0)
+	p.last = &e // after Step: opening an item clears it
+	return e, nil
+}
+
+// LastPath is the relative path of the document filed last, for copying.
+func (p *Sort) LastPath() (string, bool) {
+	if p.last == nil {
+		return "", false
+	}
+	return p.last.Path, true
+}
+
+// CanUndo reports whether a filing can be undone.
+func (p *Sort) CanUndo() bool { return p.filer.CanUndo() }
+
+// Undo reverts the last filing and puts the document back in the queue.
+func (p *Sort) Undo(ctx context.Context) (domain.LibraryEntry, error) {
+	e, err := p.filer.UndoLast(ctx)
+	if err != nil {
+		return domain.LibraryEntry{}, err
+	}
+	p.queue.Add(e.OriginalPath)
+	p.last = nil
+	return e, nil
+}
+
+// Preview renders the first page of a document at about 150 dpi and cuts the
+// empty margin off, so the content fills the preview. Call it from a
+// goroutine; it may block.
+func (p *Sort) Preview(path string) (image.Image, error) {
+	img, err := p.pdf.Render(path, 0, 2.0)
+	if err != nil {
+		return nil, err
+	}
+	return pdf.CropWhite(img), nil
+}
+
+// ViewState is how the preview of one document is shown: the zoom factor
+// (1 = fit width) and the scroll offset in pixels. It lives only in memory, so
+// every start begins with the fit-width view.
+type ViewState struct {
+	Zoom, X, Y float64
+}
+
+// SaveView remembers the view of a document, for when the user returns to it.
+func (p *Sort) SaveView(id string, v ViewState) {
+	if id == "" {
+		return
+	}
+	if p.views == nil {
+		p.views = map[string]ViewState{}
+	}
+	p.views[id] = v
+}
+
+// View returns the remembered view of a document, or fit width at the top.
+func (p *Sort) View(id string) ViewState {
+	if v, ok := p.views[id]; ok {
+		return v
+	}
+	return ViewState{Zoom: 1}
+}

@@ -29,7 +29,7 @@ type DocumentType struct {
 
 // Rule is one recognition rule of a document type.
 type Rule struct {
-	Kind    string  `json:"kind"`   // keyword | regex | iban | vatId | customerNo | domain | filename
+	Kind    string  `json:"kind"` // keyword | regex | iban | vatId | customerNo | domain | filename
 	Value   string  `json:"value"`
 	Mode    string  `json:"mode"`   // should | must | not
 	Weight  float64 `json:"weight"` // weak 0.2, normal 0.5, strong 0.9

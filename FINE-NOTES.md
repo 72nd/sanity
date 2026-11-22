@@ -12,3 +12,9 @@ Gaps, bugs and surprises found while building sanity. Newest first.
 - A subclassed Entry does not get `Wrapping = TextTruncate` from `widget.NewEntry`; a wrapping VBox around a field shifts compact goldens by 1px.
 - `GALLERY_UPDATE=1` regenerates all goldens; revert unrelated diffs.
 - Worktree isolation of the Agent tool uses the repo of the working directory (sanity), not fine, so fine agents edit fine directly.
+
+## 2026-11-22 (test driver)
+
+- The Fyne test driver runs `fyne.Do` on the calling goroutine. A page that loads in a goroutine and then calls `fyne.Do` therefore lays out concurrently with the test goroutine (`go test -race` reports it; about 1 in 40 runs of `ui.TestLibraryPageShowsRows` panics in `grid.updateHeader`). Production is not affected. `examples/starter` has the same pattern.
+- Fyne's own `ColorNameHover`/`ColorNamePressed` are painted as overlays on widgets (for example the primary "Open" button of the file dialog); the kit's opaque `Hover` token hid the button. Fixed in `theme.Color` (translucent text color).
+- Fyne passes no modifier keys with scroll events, so `ImageView` has no Ctrl+wheel zoom or pinch; it has buttons, keys and double click.
