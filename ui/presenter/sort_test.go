@@ -233,3 +233,33 @@ func TestViewStatePerDocument(t *testing.T) {
 	}
 	p.SaveView("", ViewState{Zoom: 9}) // no document: ignored
 }
+
+func TestPreviewPagesAndStep(t *testing.T) {
+	p, _ := newSort(t, 1)
+	p.pdf = pdf.NewFake("page one", "page two", "page three")
+	p.Step(0)
+	cur, _ := p.Current()
+	img, pages, err := p.Preview(cur.Path, 9) // beyond the end: clamped, still renders
+	if err != nil || img == nil || pages != 3 {
+		t.Fatalf("preview: img %v pages %d err %v", img != nil, pages, err)
+	}
+	p.SetPageCount(cur.ID, pages)
+
+	if p.PageStep(-1) {
+		t.Error("cannot go before the first page")
+	}
+	p.SaveView(cur.ID, ViewState{Zoom: 2, Y: 120})
+	if !p.PageStep(1) {
+		t.Fatal("no step to page 2")
+	}
+	if page, total := p.Page(cur.ID); page != 1 || total != 3 {
+		t.Errorf("page %d of %d", page, total)
+	}
+	if v := p.View(cur.ID); v.Zoom != 2 || v.Y != 0 {
+		t.Errorf("zoom must stay and the scroll return to the top: %+v", v)
+	}
+	p.PageStep(1)
+	if p.PageStep(1) {
+		t.Error("cannot go past the last page")
+	}
+}

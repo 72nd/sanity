@@ -39,6 +39,7 @@ type Sort struct {
 	last    *domain.LibraryEntry
 
 	views         map[string]ViewState
+	pageCount     map[string]int
 	analyzer      *inbox.Analyzer
 	state         *analysisState
 	suggestedType string
@@ -244,15 +245,21 @@ func (p *Sort) Undo(ctx context.Context) (domain.LibraryEntry, error) {
 	return e, nil
 }
 
-// Preview renders the first page of a document at about 150 dpi and cuts the
-// empty margin off, so the content fills the preview. Call it from a
-// goroutine; it may block.
-func (p *Sort) Preview(path string) (image.Image, error) {
-	img, err := p.pdf.Render(path, 0, 2.0)
+// Preview renders a page (0-based, clamped) of a document at about 150 dpi and
+// cuts the empty margin off, so the content fills the preview. It returns the
+// number of pages. Call it from a goroutine; it may block.
+func (p *Sort) Preview(path string, page int) (image.Image, int, error) {
+	meta, err := p.pdf.Meta(path)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return pdf.CropWhite(img), nil
+	pages := max(meta.Pages, 1)
+	page = min(max(page, 0), pages-1)
+	img, err := p.pdf.Render(path, page, 2.0)
+	if err != nil {
+		return nil, pages, err
+	}
+	return pdf.CropWhite(img), pages, nil
 }
 
 // ViewState is how the preview of one document is shown: the zoom factor
@@ -260,6 +267,7 @@ func (p *Sort) Preview(path string) (image.Image, error) {
 // every start begins with the fit-width view.
 type ViewState struct {
 	Zoom, X, Y float64
+	Page       int // 0-based page of the document
 }
 
 // SaveView remembers the view of a document, for when the user returns to it.
@@ -333,4 +341,37 @@ func (p *Sort) Jump(first bool) bool {
 		return p.Open(items[0].ID)
 	}
 	return p.Open(items[len(items)-1].ID)
+}
+
+// SetPageCount remembers how many pages a document has (known after Preview).
+func (p *Sort) SetPageCount(id string, n int) {
+	if p.pageCount == nil {
+		p.pageCount = map[string]int{}
+	}
+	p.pageCount[id] = n
+}
+
+// Page returns the shown page (0-based) and the page count of a document; the
+// count is 0 until the first preview arrived.
+func (p *Sort) Page(id string) (page, total int) {
+	return p.View(id).Page, p.pageCount[id]
+}
+
+// PageStep moves the current document by delta pages (clamped) and reports
+// whether the page changed. The scroll position returns to the top; the zoom
+// stays. Save the view before calling it so the zoom is current.
+func (p *Sort) PageStep(delta int) bool {
+	id := p.current
+	page, total := p.Page(id)
+	if id == "" || total < 2 {
+		return false
+	}
+	next := min(max(page+delta, 0), total-1)
+	if next == page {
+		return false
+	}
+	v := p.View(id)
+	v.Page, v.X, v.Y = next, 0, 0
+	p.SaveView(id, v)
+	return true
 }

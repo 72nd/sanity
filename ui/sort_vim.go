@@ -55,9 +55,9 @@ func InstallVim(sh *shell.Shell, act *SortActions, keys *presenter.Keys) {
 		case "last":
 			act.Last()
 		case "page.next":
-			act.ScrollDown()
+			act.PageNext()
 		case "page.prev":
-			act.ScrollUp()
+			act.PagePrev()
 		case "zoom.in":
 			act.ZoomIn()
 		case "zoom.out":

@@ -127,12 +127,21 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 
 	saveView := func() {
 		off := w.preview.ScrollOffset()
-		p.SaveView(shownID, presenter.ViewState{Zoom: w.preview.Zoom(), X: float64(off.X), Y: float64(off.Y)})
+		v := p.View(shownID) // keeps the page
+		v.Zoom, v.X, v.Y = w.preview.Zoom(), float64(off.X), float64(off.Y)
+		p.SaveView(shownID, v)
 	}
 	zoomLabel := widgets.NewLabel("100 %", widgets.LabelMuted)
+	pageLabel := widgets.NewLabel("", widgets.LabelMuted)
 	showZoom := func() {
 		zoomLabel.Text = strconv.Itoa(int(w.preview.Zoom()*100+0.5)) + " %"
 		zoomLabel.Refresh()
+		page, total := p.Page(shownID)
+		pageLabel.Text = ""
+		if total > 1 {
+			pageLabel.Text = i18n.T("sort.page", "Cur", strconv.Itoa(page+1), "Total", strconv.Itoa(total))
+		}
+		pageLabel.Refresh()
 	}
 	w.preview.OnZoomChanged = func(float64) { showZoom() }
 
@@ -145,7 +154,8 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		}
 		w.preview.SetLoading(true)
 		go func() { // rendering never blocks the UI thread
-			img, err := p.Preview(cur.Path)
+			page, _ := p.Page(cur.ID)
+			img, pages, err := p.Preview(cur.Path, page)
 			fyne.Do(func() {
 				if c, ok := p.Current(); !ok || c.ID != cur.ID {
 					return // moved on meanwhile
@@ -155,6 +165,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 					notify(theme.StatusDanger, err.Error())
 					return
 				}
+				p.SetPageCount(cur.ID, pages)
 				w.preview.SetImage(img)
 				v := p.View(cur.ID) // zoom and scroll are remembered per document
 				w.preview.SetZoom(v.Zoom)
@@ -327,6 +338,13 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		})
 	}
 	act.ZoomIn, act.ZoomOut, act.ZoomFit = w.preview.ZoomIn, w.preview.ZoomOut, w.preview.FitWidth
+	step := func(delta int) {
+		saveView() // so the zoom is current when the page changes
+		if p.PageStep(delta) {
+			loadPreview()
+		}
+	}
+	act.PageNext, act.PagePrev = func() { step(1) }, func() { step(-1) }
 	act.ScrollDown = func() { w.preview.ScrollHalfPage(true) }
 	act.ScrollUp = func() { w.preview.ScrollHalfPage(false) }
 	act.Focus = func(field string) {
@@ -404,11 +422,15 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		b.SetIcon(icon)
 		return b
 	}
+	pageBtn := zoomBtn
 	zoomBar := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, 4, widgets.HBox(
 		zoomBtn(fynetheme.IconNameContentRemove, func() { act.ZoomOut() }),
 		zoomLabel,
 		zoomBtn(fynetheme.IconNameContentAdd, func() { act.ZoomIn() }),
 		widgets.NewButton(i18n.T("sort.zoom.fit"), widgets.ButtonToolbar, func() { act.ZoomFit() }),
+		pageBtn(fynetheme.IconNameNavigateBack, func() { act.PagePrev() }),
+		pageLabel,
+		pageBtn(fynetheme.IconNameNavigateNext, func() { act.PageNext() }),
 	))
 	main := widgets.HSplit(widgets.Border(zoomBar, nil, nil, nil, w.preview), right)
 	main.SetOffset(0.66)

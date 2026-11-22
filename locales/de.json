@@ -147,5 +147,10 @@
   "types.legend.day": "Tag, 2-stellig",
   "types.legend.day1": "Tag",
   "types.legend.weekdayShort": "Wochentag kurz",
-  "types.legend.weekdayLong": "Wochentag"
+  "types.legend.weekdayLong": "Wochentag",
+  "sort.page": "Seite {{.Cur}} / {{.Total}}",
+  "cmd.sort.pagenext": "Nächste Seite des Dokuments",
+  "cmd.sort.pageprev": "Vorherige Seite des Dokuments",
+  "cmd.sort.scrolldown": "Vorschau nach unten scrollen",
+  "cmd.sort.scrollup": "Vorschau nach oben scrollen"
 }
