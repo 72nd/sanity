@@ -2,6 +2,7 @@ package presenter
 
 import (
 	"context"
+	"github.com/72nd/sanity/domain"
 	"strings"
 	"testing"
 
@@ -162,7 +163,12 @@ func TestRemoveKeepsFilesAndUpdatesRows(t *testing.T) {
 	p := loaded(t)
 	total := p.Total()
 	rows := p.Visible("")[:2]
+	var removed []string
+	p.OnRemoved = func(e domain.LibraryEntry) { removed = append(removed, e.ID) }
 	n, err := p.Remove(context.Background(), rows)
+	if len(removed) != 2 || removed[0] != rows[0].Entry.ID {
+		t.Errorf("OnRemoved got %v, want the two removed entries", removed)
+	}
 	if err != nil || n != 2 || p.Total() != total-2 {
 		t.Fatalf("n=%d err=%v total=%d", n, err, p.Total())
 	}

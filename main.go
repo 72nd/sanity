@@ -121,8 +121,8 @@ func main() {
 		}
 	}
 	a.sh.SetOnDropped(func(paths []string) { // dropped files are shown at once
+		a.sh.Show("sort") // first: the page owns the import and may not be built yet
 		a.act.Import(paths...)
-		a.sh.Show("sort")
 	})
 	a.sh.Run()
 }

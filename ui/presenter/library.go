@@ -39,6 +39,9 @@ type Library struct {
 	// ImportFn takes the absolute paths of documents that go back to the sort
 	// queue (Resort). The view sets it; nil means nothing happens.
 	ImportFn func(paths ...string)
+	// OnRemoved is called for every library entry that was removed, so the
+	// learned index can forget the document.
+	OnRemoved func(e domain.LibraryEntry)
 	// InboxCount returns the number of documents waiting in the inbox.
 	InboxCount func() int
 }

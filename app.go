@@ -100,10 +100,19 @@ func openServices(root string, demo bool, act *ui.SortActions) (*services, error
 	sortP := presenter.NewSort(st, q, filer, engine, i18n.T)
 	sortP.SetAnalyzer(&inbox.Analyzer{PDF: engine, Store: st, Learned: learner.Index()})
 
+	lib := presenter.NewLibrary(st, i18n.T)
+	lib.OnRemoved = func(e domain.LibraryEntry) { // a removed entry is no longer a learning example
+		if err := learner.Forget(e.SHA256); err != nil {
+			fmt.Fprintln(os.Stderr, "sanity: learning:", err)
+		}
+	}
+	types := presenter.NewTypes(st, i18n.T)
+	types.Import.Learned = learner.Index() // the dry run of an imported type uses the learned scores too
+
 	return &services{
 		Root: root, Name: pr.Name, st: st, queue: q, stop: stop, cancel: cancel,
-		lib: presenter.NewLibrary(st, i18n.T), sort: sortP,
-		types: presenter.NewTypes(st, i18n.T), project: presenter.NewProject(st, i18n.T),
+		lib: lib, sort: sortP,
+		types: types, project: presenter.NewProject(st, i18n.T),
 	}, nil
 }
 

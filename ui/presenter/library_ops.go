@@ -69,6 +69,9 @@ func (p *Library) Remove(ctx context.Context, rows []Row) (int, error) {
 			break
 		}
 		gone[r.Entry.ID] = true
+		if p.OnRemoved != nil {
+			p.OnRemoved(r.Entry)
+		}
 	}
 	kept := p.rows[:0:0]
 	for _, r := range p.rows {
