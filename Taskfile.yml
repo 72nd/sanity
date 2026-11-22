@@ -33,3 +33,49 @@ tasks:
     desc: Run the app
     cmds:
       - go run .
+
+  icon:
+    desc: Build the app icon (SVG, PNG, icns) from icon/gen.py
+    cmds:
+      - task: icon:svg
+      - task: icon:icns
+
+  icon:svg:
+    desc: Generate icon-large.svg and icon-small.svg
+    dir: icon
+    sources: [gen.py]
+    generates: [icon-large.svg, icon-small.svg]
+    cmds:
+      - python3 gen.py
+
+  icon:icns:
+    desc: Render icon.png and icon.icns (large variant from 128 px up, small variant below)
+    dir: icon
+    preconditions:
+      - sh: command -v rsvg-convert
+        msg: rsvg-convert is missing (brew install librsvg)
+    sources: [icon-large.svg, icon-small.svg, mkicns.py]
+    generates: [icon.png, icon.icns]
+    cmds:
+      - rm -rf build && mkdir build
+      - rsvg-convert -w 16 icon-small.svg -o build/16.png
+      - rsvg-convert -w 32 icon-small.svg -o build/32.png
+      - rsvg-convert -w 64 icon-small.svg -o build/64.png
+      - rsvg-convert -w 128 icon-large.svg -o build/128.png
+      - rsvg-convert -w 256 icon-large.svg -o build/256.png
+      - rsvg-convert -w 512 icon-large.svg -o build/512.png
+      - rsvg-convert -w 1024 icon-large.svg -o build/1024.png
+      - cp build/1024.png icon.png
+      - python3 mkicns.py icon.icns build
+      - rm -rf build
+
+  package:
+    desc: Build Sanity.app with the hand-made icns (needs the fyne CLI, go install fyne.io/tools/cmd/fyne@latest)
+    deps: [icon]
+    preconditions:
+      - sh: command -v fyne
+        msg: fyne CLI is missing (go install fyne.io/tools/cmd/fyne@latest)
+    cmds:
+      - fyne package -os darwin
+      # fyne derives its icns from icon.png alone; ours uses the small variant for small sizes
+      - cp icon/icon.icns Sanity.app/Contents/Resources/icon.icns

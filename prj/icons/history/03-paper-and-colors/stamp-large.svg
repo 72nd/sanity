@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4aa391"/><stop offset="1" stop-color="#245f56"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffaf0"/><stop offset="1" stop-color="#f3eada"/>
+    </linearGradient>
+    <filter id="sh" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity="0.32"/>
+    </filter>
+    <filter id="psh" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0b2a25" flood-opacity="0.35"/>
+    </filter>
+    <filter id="ink" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="3" seed="7" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -22 16.3" result="m"/>
+      <feComposite in="SourceGraphic" in2="m" operator="in"/>
+    </filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#sh)"/>
+  <g transform="rotate(-5 512 512)" filter="url(#psh)">
+    <rect x="215" y="215" width="594" height="594" rx="70" fill="url(#paper)"/>
+  </g>
+  <g transform="rotate(-5 512 512)" fill="#c9d3cc">
+    <rect x="285" y="268" width="230" height="20" rx="10"/>
+    <rect x="285" y="308" width="140" height="20" rx="10"/>
+    <rect x="509" y="738" width="230" height="20" rx="10"/>
+  </g>
+  <g transform="rotate(-10 512 512)" fill="none" stroke="#d9472b" filter="url(#ink)">
+    <circle cx="512" cy="512" r="192" stroke-width="32"/>
+    <circle cx="512" cy="512" r="138" stroke-width="10"/>
+    <g fill="#d9472b" stroke="none"><circle cx="671.0" cy="512.0" r="7"/><circle cx="665.6" cy="553.2" r="7"/><circle cx="649.7" cy="591.5" r="7"/><circle cx="624.4" cy="624.4" r="7"/><circle cx="591.5" cy="649.7" r="7"/><circle cx="553.2" cy="665.6" r="7"/><circle cx="512.0" cy="671.0" r="7"/><circle cx="470.8" cy="665.6" r="7"/><circle cx="432.5" cy="649.7" r="7"/><circle cx="399.6" cy="624.4" r="7"/><circle cx="374.3" cy="591.5" r="7"/><circle cx="358.4" cy="553.2" r="7"/><circle cx="353.0" cy="512.0" r="7"/><circle cx="358.4" cy="470.8" r="7"/><circle cx="374.3" cy="432.5" r="7"/><circle cx="399.6" cy="399.6" r="7"/><circle cx="432.5" cy="374.3" r="7"/><circle cx="470.8" cy="358.4" r="7"/><circle cx="512.0" cy="353.0" r="7"/><circle cx="553.2" cy="358.4" r="7"/><circle cx="591.5" cy="374.3" r="7"/><circle cx="624.4" cy="399.6" r="7"/><circle cx="649.7" cy="432.5" r="7"/><circle cx="665.6" cy="470.8" r="7"/></g>
+    <path d="M440 525 L500 587 L600 440" stroke-width="54" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

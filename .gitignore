@@ -38,3 +38,10 @@ go.work.sum
 
 # macOS
 .DS_Store
+
+# Packaged app
+*.app
+
+# Design-history generator output (prj/icons/history/generators)
+__pycache__/
+_out/
