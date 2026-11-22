@@ -21,7 +21,7 @@ Gaps, bugs and surprises found while building sanity. Newest first.
 
 ## 2026-11-22 (Types editor)
 
-- `grid.Column.Options` (drop-down cell) now exists. The rules grid uses it for Kind; mode, strength and where are still typed text and can switch over with `dropdown(...)` in `ui/types_view.go`.
+- `grid.Column.Options` (drop-down cell) now exists. The rules grid uses it for Kind, Mode, Strength and Where (`dropdown(...)` in `ui/types_view.go`).
 - (Corrected) `widgets.ShowError`, `ShowInfo`, `ShowCustom` and `ShowForm` do exist; the Types agent missed them and used toasts for failures.
 - `grid.Grid` has a minimum height of about 4 rows. sanity wraps it in a small `minHeight` layout (`ui/layout.go`); a `widgets.MinHeight` helper in fine would be cleaner.
 - `domain` has no sentinel error for a template that escapes the root (`..`); the presenter matches the error text.

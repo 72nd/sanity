@@ -75,10 +75,12 @@ func ruleColumns(p *presenter.Types) []grid.Column[presenter.RuleRow] {
 				*r = p.Rules()[r.Index]
 				return nil
 			}},
-		choice("mode", i18n.T("col.mode"), 90, p.ModeChoices, func(r presenter.RuleRow) string { return r.Rule.Mode }, p.SetRuleMode),
-		choice("strength", i18n.T("col.strength"), 100, p.StrengthChoices,
-			func(r presenter.RuleRow) string { return presenter.StrengthID(r.Rule.Weight) }, p.SetRuleStrength),
-		choice("where", i18n.T("col.where"), 100, p.WhereChoices, func(r presenter.RuleRow) string { return r.Rule.Where }, p.SetRuleWhere),
+		dropdown(choice("mode", i18n.T("col.mode"), 110, p.ModeChoices, func(r presenter.RuleRow) string { return r.Rule.Mode }, p.SetRuleMode),
+			p.ModeChoices),
+		dropdown(choice("strength", i18n.T("col.strength"), 120, p.StrengthChoices,
+			func(r presenter.RuleRow) string { return presenter.StrengthID(r.Rule.Weight) }, p.SetRuleStrength), p.StrengthChoices),
+		dropdown(choice("where", i18n.T("col.where"), 120, p.WhereChoices, func(r presenter.RuleRow) string { return r.Rule.Where }, p.SetRuleWhere),
+			p.WhereChoices),
 	}
 }
 

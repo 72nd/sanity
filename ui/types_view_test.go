@@ -47,9 +47,9 @@ func TestTypesPageShowsRules(t *testing.T) {
 	}
 }
 
-// The Kind cell is a drop-down: its options are the kind labels and a pick
-// goes through the presenter.
-func TestRuleKindIsDropdown(t *testing.T) {
+// The Kind, Mode, Strength and Where cells are drop-downs: a pick of another
+// option goes through the presenter.
+func TestRuleChoiceColumnsAreDropdowns(t *testing.T) {
 	test.NewTempApp(t)
 	i18n.MustAddFiles(locales.FS, locales.Files...)
 	i18n.SetLanguage("en")
@@ -57,20 +57,38 @@ func TestRuleKindIsDropdown(t *testing.T) {
 	if err := tp.Load(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	cols := ruleColumns(tp)
-	g := grid.New(cols)
+	g := grid.New(ruleColumns(tp))
 	g.SetItems(tp.Rules())
 	w := test.NewTempWindow(t, g)
 	w.Resize(fyne.NewSize(900, 300))
-	if !g.StartEdit(0, 1) || !g.Editing() {
-		t.Fatal("kind cell did not open an editor")
+	cols := []struct {
+		col     int
+		choices func() []presenter.Choice
+		id      func(presenter.RuleRow) string
+	}{
+		{1, tp.KindChoices, func(r presenter.RuleRow) string { return r.Rule.Kind }},
+		{3, tp.ModeChoices, func(r presenter.RuleRow) string { return r.Rule.Mode }},
+		{4, tp.StrengthChoices, func(r presenter.RuleRow) string { return presenter.StrengthID(r.Rule.Weight) }},
+		{5, tp.WhereChoices, func(r presenter.RuleRow) string { return r.Rule.Where }},
 	}
-	target := choiceLabels(tp.KindChoices())[2]
-	g.SetEditText(target)
-	if !g.CommitEdit() {
-		t.Fatal("pick rejected")
-	}
-	if got := presenter.LabelOf(tp.KindChoices(), tp.Rules()[0].Rule.Kind); got != target {
-		t.Errorf("kind = %q, want %q", got, target)
+	for _, c := range cols {
+		if !g.StartEdit(0, c.col) || !g.Editing() {
+			t.Fatalf("column %d did not open an editor", c.col)
+		}
+		cur := presenter.LabelOf(c.choices(), c.id(tp.Rules()[0]))
+		target := ""
+		for _, l := range choiceLabels(c.choices()) {
+			if l != cur {
+				target = l
+				break
+			}
+		}
+		g.SetEditText(target)
+		if !g.CommitEdit() {
+			t.Fatalf("column %d: pick %q rejected", c.col, target)
+		}
+		if got := presenter.LabelOf(c.choices(), c.id(tp.Rules()[0])); got != target {
+			t.Errorf("column %d = %q, want %q", c.col, got, target)
+		}
 	}
 }
