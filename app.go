@@ -99,6 +99,14 @@ func openServices(root string, demo bool, act *ui.SortActions) (*services, error
 	}
 	sortP := presenter.NewSort(st, q, filer, engine, i18n.T)
 	sortP.SetAnalyzer(&inbox.Analyzer{PDF: engine, Store: st, Learned: learner.Index()})
+	if !demo { // the demo project is a throw-away folder: nothing to tune there
+		clog := inbox.NewCorrectionLog(root)
+		sortP.OnCorrection = func(c inbox.Correction) {
+			if err := clog.Append(c); err != nil {
+				fmt.Fprintln(os.Stderr, "sanity: correction log:", err)
+			}
+		}
+	}
 
 	lib := presenter.NewLibrary(st, i18n.T)
 	lib.OnRemoved = func(e domain.LibraryEntry) { // a removed entry is no longer a learning example

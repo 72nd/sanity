@@ -203,3 +203,23 @@ func TestInboxHint(t *testing.T) {
 		t.Errorf("hint = %q %v", h, ok)
 	}
 }
+
+func TestFocusFiltersToTheEntryAndSelectsIt(t *testing.T) {
+	p := loaded(t)
+	e := p.Visible("")[2].Entry
+	p.Focus(e.ID)
+	if p.Query != e.Path || len(p.SelKeys) != 1 || p.SelKeys[0] != e.ID {
+		t.Fatalf("query %q sel %v", p.Query, p.SelKeys)
+	}
+	if rows := p.Visible(p.Query); len(rows) != 1 || rows[0].Entry.ID != e.ID {
+		t.Errorf("visible %d rows, want only the entry", len(rows))
+	}
+	p.Focus("not-loaded")
+	if p.Query != "" || len(p.SelKeys) != 1 || p.SelKeys[0] != "not-loaded" {
+		t.Errorf("unknown entry: query %q sel %v", p.Query, p.SelKeys)
+	}
+	p.FocusEntry(domain.LibraryEntry{ID: "n1", Path: "a/b.pdf"})
+	if p.Query != "a/b.pdf" || p.SelKeys[0] != "n1" {
+		t.Errorf("FocusEntry: %q %v", p.Query, p.SelKeys)
+	}
+}

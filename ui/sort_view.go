@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -60,7 +61,10 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	pathLabel := widgets.NewLabel("", widgets.LabelMuted)
 	hint := widgets.NewLabel("", widgets.LabelMuted)
 	dupLabel := widgets.NewLabel("", widgets.LabelBody)
-	dupLabel.Hide()
+	var dupEntry domain.LibraryEntry
+	dupBtn := widgets.NewButton(i18n.T("sort.duplicate.show"), widgets.ButtonSecondary, func() { act.ShowInLibrary(dupEntry) })
+	dupBar := widgets.VBox(dupLabel, widgets.HBox(dupBtn))
+	dupBar.Hide()
 
 	// Batch panel: shown instead of the single form while several documents
 	// are selected (sort_batch.go in the presenter does the planning).
@@ -74,24 +78,69 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	var refreshBatch func() // set below; analysis results call it
 
 	var syncing bool // true while code, not the user, fills the fields
-	shownID := ""    // the document whose preview is on screen
+
+	// Text rows: one entry per {text:<label>} placeholder of the selected
+	// type. The container is rebuilt when the labels change; the entries are
+	// kept per label so a typed text and the focus survive.
+	textBox := widgets.VBox()
+	textEntries := map[string]*widgets.Entry{}
+	textKey := "" // labels of the rows on screen
+	var focusNext func(from string)
+	var refreshForm func()
+	textEntry := func(label string) *widgets.Entry {
+		if e, ok := textEntries[label]; ok {
+			return e
+		}
+		e := widgets.NewEntry()
+		e.OnChanged = func(s string) {
+			if !syncing {
+				p.SetText(label, s)
+				refreshForm()
+			}
+		}
+		e.OnSubmitted = func(string) { focusNext("text:" + label) }
+		e.OnEscape = func() { act.SetMode(true) }
+		textEntries[label] = e
+		return e
+	}
+	syncTexts := func() {
+		labels := p.TextFields()
+		key := strings.Join(labels, "\x00")
+		if key != textKey {
+			textKey = key
+			rows := make([]fyne.CanvasObject, 0, len(labels))
+			for _, l := range labels {
+				rows = append(rows, widgets.NewFormRow(l, textEntry(l)))
+			}
+			textBox.(*fyne.Container).Objects = rows
+			textBox.Refresh()
+		}
+		f := p.Form()
+		for _, l := range labels {
+			if e := textEntry(l); e.Text != f.Text[l] {
+				e.SetText(f.Text[l])
+			}
+		}
+	}
+	shownID := "" // the document whose preview is on screen
 
 	notify := func(st theme.Status, msg string) { sh.Toasts.Notify(st, msg, toastDur(4*time.Second)) }
 
-	refreshForm := func() {
+	refreshForm = func() {
 		if rel, ok := p.PathPreview(); ok {
 			pathLabel.Text, hint.Text = "→ "+rel, i18n.T("sort.hint.file")
 		} else {
 			pathLabel.Text, hint.Text = "", ""
 			if m := p.Missing(); len(m) > 0 {
-				hint.Text = i18n.T("sort.hint.missing", "Fields", joinComma(m))
+				hint.Text = i18n.T("sort.hint.missing", "Fields", joinComma(missingNames(m)))
 			}
 		}
 		if e, why, ok := p.Duplicate(); ok {
-			dupLabel.Text = i18n.T("sort.duplicate", "Path", e.Path, "Reason", why)
-			dupLabel.Show()
+			dupEntry = e
+			dupLabel.Text = i18n.T("sort.duplicate", "Path", e.Path, "Reason", p.DuplicateReasonText(why))
+			dupBar.Show()
 		} else {
-			dupLabel.Hide()
+			dupBar.Hide()
 		}
 		pathLabel.Refresh()
 		hint.Refresh()
@@ -135,6 +184,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		}
 		setText(w.invoice, f.Invoice)
 		setText(w.amount, f.Amount)
+		syncTexts()
 		syncing = false
 		refreshForm()
 	}
@@ -266,8 +316,11 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	}
 
 	// Keyboard flow: Enter accepts a field and moves to the next empty one.
-	focusNext := func(from string) {
+	focusNext = func(from string) {
 		order := []string{"type", "date", "invoice", "amount"}
+		for _, l := range p.TextFields() {
+			order = append(order, "text:"+l)
+		}
 		start := 0
 		for i, n := range order {
 			if n == from {
@@ -286,6 +339,9 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 			case n == "amount" && f.Amount == "":
 				sh.Focus(w.amount)
 				return
+			case strings.HasPrefix(n, "text:") && f.Text[n[5:]] == "":
+				sh.Focus(textEntry(n[5:]))
+				return
 			}
 		}
 	}
@@ -294,11 +350,17 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	w.picker.OnChanged = func(id string) {
 		if !syncing {
 			p.SetType(id)
+			syncing = true
+			syncTexts()
+			syncing = false
 			refreshForm()
 		}
 	}
 	w.picker.OnCommitted = func(id string) {
 		p.SetType(id)
+		syncing = true
+		syncTexts()
+		syncing = false
 		refreshForm()
 		focusNext("type")
 	}
@@ -325,6 +387,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 			refreshForm()
 		}
 	}
+	w.amount.OnSubmitted = func(string) { focusNext("amount") }
 	w.queue.OnActivated = func(it *inbox.Item) {
 		if it != nil && p.Open(it.ID) {
 			showDoc()
@@ -526,11 +589,12 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	addBtn := widgets.NewButton(i18n.T("sort.add"), widgets.ButtonSecondary, func() { act.AddFiles() })
 
 	single := widgets.VBox(
-		dupLabel,
+		dupBar,
 		widgets.NewFormRow(i18n.T("sort.type"), w.picker),
 		widgets.NewFormRow(i18n.T("sort.date"), w.date),
 		widgets.NewFormRow(i18n.T("sort.invoice"), w.invoice),
 		widgets.NewFormRow(i18n.T("sort.amount"), w.amount),
+		textBox,
 		pathLabel, hint,
 		widgets.HBox(fileBtn, skipBtn, learnBtn),
 	)
@@ -573,7 +637,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 				case b.Blocked():
 					why := b.Err
 					if len(b.Missing) > 0 {
-						why = i18n.T("sort.batch.missing", "Fields", joinComma(b.Missing))
+						why = i18n.T("sort.batch.missing", "Fields", joinComma(missingNames(b.Missing)))
 					}
 					rows = append(rows, widgets.HBox(widgets.NewStatusBadge(theme.StatusWarning, i18n.T("sort.batch.blocked")), name),
 						widgets.NewLabel(why, widgets.LabelMuted))
@@ -659,6 +723,15 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		})
 	})
 	return root
+}
+
+// missingNames shows a missing {text:<label>} placeholder as its label.
+func missingNames(m []string) []string {
+	out := make([]string, len(m))
+	for i, n := range m {
+		out[i] = strings.TrimPrefix(n, "text:")
+	}
+	return out
 }
 
 func joinComma(s []string) string {

@@ -20,7 +20,8 @@ In the shortcut tables, `Cmd` is the Command key. Fine's shortcuts use the Comma
 9. [The Library](#the-library)
 10. [The Types editor](#the-types-editor)
 11. [Privacy](#privacy)
-12. [Planned, not built yet](#planned-not-built-yet)
+12. [The correction log](#the-correction-log)
+13. [Planned, not built yet](#planned-not-built-yet)
 
 ## Concepts
 
@@ -98,9 +99,17 @@ so the copy then gives the path of the document just filed. If the next document
 complete path, that path is copied instead.
 
 **Duplicates.** If the document looks like one already in the library, a line above the form says
-"Looks like a duplicate of ..." with the path of the existing document and the reason. A duplicate
-is found by the same file hash, the same text, or the same invoice number within the same type. The
-line does not block filing and has no link.
+"Looks like a duplicate of ..." with the path of the existing document and the reason (same file,
+same text, or same invoice number within the same type). The line does not block filing. Its button
+**Show in library** opens the Library page with the filter set to that path and the entry selected.
+
+**Free text fields.** When the template of the selected type has `{text:<label>}` placeholders (for
+example `projects/{text:Project}/...`), the form shows one more entry per label below Amount. A label
+that appears twice in the template has one entry. `Enter` moves through the empty ones like through
+the other fields, the hint line names a missing one (`Still needed: Project`), and the path line
+shows the result. What you typed stays per label when you switch to another type and back, and is
+cleared when the next document opens. A batch has no form, so a document of a batch whose type needs
+a text is shown as blocked; file it alone.
 
 **Skipping.** `Cmd+]` and `Cmd+[` open the next and previous document without filing the current one.
 The Skip button does the same. The document stays in the queue.
@@ -329,7 +338,7 @@ Placeholders in the path template:
 | `{invoice}` | the invoice number from the form |
 | `{amount}` | the amount from the form, for example `49.95` |
 | `{original}` | the original file name without `.pdf` |
-| `{text:<label>}` | a free text value; the form has no field for it yet, so a template with it cannot be filed yet (see [Planned](#planned-not-built-yet)) |
+| `{text:<label>}` | a free text value; the sort form shows one extra entry named `<label>` while the type is selected (see [Free text fields](#free-text-fields)) |
 
 Example:
 
@@ -383,6 +392,19 @@ in the cache file of the project (`office/.sanity/cache.json`), which can be reb
   `office/sanity.json`. They are left out of the learned fingerprints and the suggestion index, and
   the Learn dialog never offers them.
 
+## The correction log
+
+Every filing is written as one line of JSON to `office/.sanity/corrections.jsonl` of the project (the
+demo project writes none). The line records what the analysis suggested (top type with its score and
+whether it was confident, top date, invoice number and amount) next to what you filed, so thresholds
+can be tuned later. Documents of a batch get a line each. An undo adds a line with `"undone": true`
+and the same SHA-256; no line is ever deleted.
+
+`sanity corrections [--project <root>]` reads the log and prints the number of filings, the type hit
+rate (suggested type equals the filed type), the precision of confident suggestions, the date hit rate
+and the hits per type. Filings that were undone are not counted. The project is the current directory
+unless `--project` is given.
+
 ## Planned, not built yet
 
 These items are in [PLAN.md](../PLAN.md). They are not in the app today.
@@ -393,7 +415,6 @@ These items are in [PLAN.md](../PLAN.md). They are not in the app today.
   line argument. To change its ignore tokens, edit `office/sanity.json` while sanity is closed, since
   the app rewrites the file on every change.
 - **Multi-select and batch filing** in the queue.
-- **`{text:<label>}` input** in the sort form (see the Types editor section above).
 - **Importing a document type** from a JSON snippet, **Copy as JSON** per type, and a **Copy LLM
   prompt** action in the Types editor, with a `sanity types check` command. The app itself never calls
   a language model.

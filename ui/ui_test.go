@@ -20,7 +20,16 @@ import (
 	"github.com/72nd/sanity/ui/presenter"
 )
 
+// lastAct is the actions of the shell newShellWith built last.
+var lastAct *SortActions
+
 func newShell(t *testing.T, pdfs int) (*shell.Shell, *presenter.Sort, *presenter.Library) {
+	t.Helper()
+	return newShellWith(t, pdfs, store.NewFake())
+}
+
+// newShellWith is newShell on a store the test prepared.
+func newShellWith(t *testing.T, pdfs int, st store.Store) (*shell.Shell, *presenter.Sort, *presenter.Library) {
 	t.Helper()
 	app := test.NewTempApp(t)
 	i18n.MustAddFiles(locales.FS, locales.Files...)
@@ -35,7 +44,6 @@ func newShell(t *testing.T, pdfs int) (*shell.Shell, *presenter.Sort, *presenter
 			t.Fatal(err)
 		}
 	}
-	st := store.NewFake()
 	q := inbox.NewQueue(nil)
 	q.Add(dir)
 	lib := presenter.NewLibrary(st, i18n.T)
@@ -46,6 +54,7 @@ func newShell(t *testing.T, pdfs int) (*shell.Shell, *presenter.Sort, *presenter
 	}
 	sp := presenter.NewSort(st, q, inbox.NewFiler(root, st), pdf.NewFake(), i18n.T)
 	act := NewSortActions()
+	lastAct = act
 	sh := shell.New(app, shell.Config{TitleKey: "app.title", Pages: Pages(lib, sp, q, act, presenter.NewKeys(nil), presenter.NewTypes(st, i18n.T)), Width: 1200, Height: 760})
 	for _, c := range Commands(act) {
 		if err := sh.Registry.Register(c); err != nil {

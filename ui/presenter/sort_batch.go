@@ -192,8 +192,9 @@ func (p *Sort) FileBatch(ctx context.Context, typeID string) (filed []domain.Lib
 		if len(res.Suggestions) > 0 && res.Suggestions[0].Confident && res.Suggestions[0].TypeID != typeID {
 			over = []string{"type"}
 		}
+		vals := p.batchValues(it, typ)
 		e, err := p.filer.File(ctx, inbox.Request{
-			Path: it.Path, Type: typ, Values: p.batchValues(it, typ), SHA256: sum,
+			Path: it.Path, Type: typ, Values: vals, SHA256: sum,
 			TextHash: res.TextHash, Text: res.Text, Overrides: over, Batch: batch,
 		})
 		if err != nil {
@@ -201,6 +202,8 @@ func (p *Sort) FileBatch(ctx context.Context, typeID string) (filed []domain.Lib
 			left = append(left, b.ID)
 			continue
 		}
+		_, has := p.result(it.ID)
+		p.correction(inbox.NewCorrection(res, has, typ.ID, vals, sum, e.FiledAt, over))
 		filed = append(filed, e)
 		p.queue.Remove(b.ID)
 	}
@@ -226,6 +229,7 @@ func (p *Sort) UndoBatch(ctx context.Context) ([]domain.LibraryEntry, error) {
 	es, err := p.filer.UndoBatch(ctx)
 	for _, e := range es {
 		p.queue.Add(e.OriginalPath)
+		p.undoneCorrection(e)
 	}
 	if len(es) > 0 {
 		p.last = nil

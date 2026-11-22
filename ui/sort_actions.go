@@ -6,6 +6,7 @@ import (
 
 	"github.com/72nd/fine/shell"
 	"github.com/72nd/fine/shell/i18n"
+	"github.com/72nd/sanity/domain"
 )
 
 // SortActions are the sort page's operations that commands and the Vim layer
@@ -26,6 +27,10 @@ type SortActions struct {
 	SetMode func(normal bool)
 	Focus   func(field string) // "type", "date" or "" for the first empty field
 
+	// ShowInLibrary opens the Library page with the entry selected and the
+	// quick filter on its path (the duplicate banner uses it). Pages sets it.
+	ShowInLibrary func(e domain.LibraryEntry)
+
 	// Library holds the library page's operations, see LibraryActions.
 	Library *LibraryActions
 
@@ -41,7 +46,7 @@ func NewSortActions() *SortActions {
 		File: nop, Undo: nop, Skip: nop, SkipBack: nop, AddFiles: nop,
 		ZoomIn: nop, ZoomOut: nop, ZoomFit: nop,
 		ScrollDown: nop, ScrollUp: nop, Search: nop, PageNext: nop, PagePrev: nop, LearnRules: nop,
-		Import: func(...string) {}, Focus: func(string) {}, shown: nop, Library: NewLibraryActions(),
+		Import: func(...string) {}, Focus: func(string) {}, shown: nop, Library: NewLibraryActions(), ShowInLibrary: func(domain.LibraryEntry) {},
 		CopyRel: nop, CopyAbs: nop, Reveal: nop, Remove: nop, First: nop, Last: nop, PasteFiles: nop, FileBatch: nop, UndoBatch: nop, SetMode: func(bool) {},
 	}
 }

@@ -64,6 +64,9 @@ func (a *application) switchTo(root string) {
 // main opens the project folder given as the first argument (default: the
 // current directory) or runs on sample data with -demo.
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "corrections" {
+		os.Exit(runCorrections(os.Args[2:], os.Stdout, os.Stderr))
+	}
 	if len(os.Args) > 2 && os.Args[1] == "types" && os.Args[2] == "check" {
 		os.Exit(runTypesCheck(os.Args[3:], os.Stdout, os.Stderr))
 	}

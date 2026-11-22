@@ -397,3 +397,18 @@ func TestUniquePath(t *testing.T) {
 		})
 	}
 }
+
+func TestTextLabels(t *testing.T) {
+	tpl, err := ParseTemplate("p/{text:Project}/{date:2006}/{text:Client}_{text:Project}.pdf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := tpl.TextLabels()
+	if len(got) != 2 || got[0] != "Project" || got[1] != "Client" {
+		t.Errorf("TextLabels = %v", got)
+	}
+	plain, _ := ParseTemplate("p/{invoice}.pdf")
+	if len(plain.TextLabels()) != 0 {
+		t.Error("labels without text placeholders")
+	}
+}

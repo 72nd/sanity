@@ -10,6 +10,7 @@ import (
 
 	"github.com/72nd/fine/shell"
 	"github.com/72nd/fine/shell/i18n"
+	"github.com/72nd/sanity/inbox"
 	"github.com/72nd/sanity/locales"
 	"github.com/72nd/sanity/pdf"
 	"github.com/72nd/sanity/ui"
@@ -95,4 +96,32 @@ func TestSwitchToReplacesServices(t *testing.T) {
 func TestMain(m *testing.M) {
 	ui.SyncBackground()
 	os.Exit(m.Run())
+}
+
+// A project writes its correction log under office/.sanity; the demo does not.
+func TestServicesWireCorrectionLog(t *testing.T) {
+	newEngine = func() pdf.Engine { return pdf.NewFake() }
+	t.Cleanup(func() { newEngine = pdf.NewEngine })
+	root := t.TempDir()
+	s, err := openServices(root, false, ui.NewSortActions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	if s.sort.OnCorrection == nil {
+		t.Fatal("OnCorrection not set")
+	}
+	s.sort.OnCorrection(inbox.Correction{SHA256: "abc", TypeID: "x"})
+	cs, err := inbox.ReadAll(s.Root)
+	if err != nil || len(cs) != 1 || cs[0].SHA256 != "abc" {
+		t.Errorf("log %v %v", cs, err)
+	}
+	d, err := openServices(t.TempDir(), true, ui.NewSortActions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if d.sort.OnCorrection != nil {
+		t.Error("the demo must not write a log")
+	}
 }

@@ -167,6 +167,20 @@ func (t Template) Missing(v Values) []string {
 	return out
 }
 
+// TextLabels lists the labels of the {text:<label>} placeholders in template
+// order, each once.
+func (t Template) TextLabels() []string {
+	var out []string
+	seen := make(map[string]bool)
+	for _, s := range t.segments {
+		if s.kind == phText && !seen[s.text] {
+			seen[s.text] = true
+			out = append(out, s.text)
+		}
+	}
+	return out
+}
+
 // Validate checks the template for paths that can never be valid: absolute paths, ".." segments,
 // empty segments and unsafe characters. It evaluates the template with sample values to do so.
 func (t Template) Validate() error {

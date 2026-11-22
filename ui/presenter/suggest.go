@@ -181,6 +181,20 @@ func (p *Sort) Duplicate() (domain.LibraryEntry, string, bool) {
 	return *r.Duplicate, r.DupReason, true
 }
 
+// DuplicateReasonText translates the reason that analysis.FindDuplicate gives
+// (an English phrase). An unknown reason is returned as it is.
+func (p *Sort) DuplicateReasonText(reason string) string {
+	switch reason {
+	case "same file (SHA-256)":
+		return p.T("sort.duplicate.reason.file")
+	case "same text":
+		return p.T("sort.duplicate.reason.text")
+	case "same invoice number":
+		return p.T("sort.duplicate.reason.invoice")
+	}
+	return reason
+}
+
 // overrides lists the suggestions the user changed, for later tuning.
 func (p *Sort) overrides() []string {
 	var o []string

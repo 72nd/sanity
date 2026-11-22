@@ -7,6 +7,7 @@ import (
 	fynetheme "fyne.io/fyne/v2/theme"
 
 	"github.com/72nd/fine/shell"
+	"github.com/72nd/sanity/domain"
 	"github.com/72nd/sanity/inbox"
 	"github.com/72nd/sanity/ui/presenter"
 )
@@ -23,7 +24,10 @@ func Pages(lib *presenter.Library, sort *presenter.Sort, q *inbox.Queue, act *So
 		// Keep: the form, the zoom and the position in the queue survive a
 		// visit to another page.
 		{ID: "sort", TitleKey: "nav.sort", Icon: fynetheme.IconNameDocument, Keep: true,
-			Build:  func(sh *shell.Shell) fyne.CanvasObject { return SortPage(sh, sort, q, act) },
+			Build: func(sh *shell.Shell) fyne.CanvasObject {
+				act.ShowInLibrary = func(e domain.LibraryEntry) { lib.FocusEntry(e); sh.Show("library") }
+				return SortPage(sh, sort, q, act)
+			},
 			OnShow: func(sh *shell.Shell) { act.shown(); InstallVim(sh, act, keys) }},
 		{ID: "types", TitleKey: "nav.types", Icon: fynetheme.IconNameSettings,
 			Build: func(sh *shell.Shell) fyne.CanvasObject { return TypesPage(sh, types) }},

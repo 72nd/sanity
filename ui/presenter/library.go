@@ -97,6 +97,26 @@ func (p *Library) Visible(query string) []Row {
 	return out
 }
 
+// Focus prepares the page to show one filed entry: the quick filter becomes
+// the entry's path, so only it is visible, and the entry is selected. It works
+// from the loaded rows; an entry that is not loaded yet is selected without
+// the filter (the page reloads on the next visit). Show the page afterwards.
+func (p *Library) Focus(entryID string) {
+	for _, r := range p.rows {
+		if r.Entry.ID == entryID {
+			p.FocusEntry(r.Entry)
+			return
+		}
+	}
+	p.Query, p.SelKeys = "", []string{entryID}
+}
+
+// FocusEntry is Focus for an entry the caller already has (it may have been
+// filed after the last load).
+func (p *Library) FocusEntry(e domain.LibraryEntry) {
+	p.Query, p.SelKeys = e.Path, []string{e.ID}
+}
+
 // DateText formats a document date for the grid.
 func (p *Library) DateText(t time.Time) string { return t.Format("02.01.2006") }
 

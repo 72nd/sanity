@@ -33,6 +33,12 @@ type Sort struct {
 	pdf   pdf.Engine
 	T     Translator
 
+	// OnCorrection, when set, receives one line for every filing (what the
+	// analysis suggested versus what was filed) and one for every undo. It
+	// is called on the goroutine that files. The app writes it to the
+	// correction log.
+	OnCorrection func(inbox.Correction)
+
 	types     []domain.DocumentType
 	current   string
 	form      Form
@@ -166,6 +172,22 @@ func (p *Sort) values() domain.Values {
 	}
 }
 
+// TextFields lists the labels of the {text:<label>} placeholders of the
+// selected type's template, in template order. The form shows one entry for
+// each. Typed texts are kept per label, so switching the type back and forth
+// does not lose them.
+func (p *Sort) TextFields() []string {
+	typ, ok := p.selectedType()
+	if !ok {
+		return nil
+	}
+	tpl, err := domain.ParseTemplate(typ.PathTemplate)
+	if err != nil {
+		return nil
+	}
+	return tpl.TextLabels()
+}
+
 // Missing lists the template placeholders that still need a value. It is
 // empty when no type is selected.
 func (p *Sort) Missing() []string {
@@ -216,11 +238,12 @@ func (p *Sort) File(ctx context.Context) (domain.LibraryEntry, error) {
 	if err != nil {
 		return domain.LibraryEntry{}, err
 	}
-	res, _ := p.result(cur.ID)
+	res, has := p.result(cur.ID)
 	e, err := p.filer.File(ctx, inbox.Request{Path: cur.Path, Type: typ, Values: p.values(), SHA256: sum, TextHash: res.TextHash, Text: res.Text, Overrides: p.overrides()})
 	if err != nil {
 		return domain.LibraryEntry{}, err
 	}
+	p.correction(inbox.NewCorrection(res, has, typ.ID, p.values(), sum, e.FiledAt, p.overrides()))
 	p.queue.Remove(cur.ID)
 	p.forgetPreview(cur.Path)
 	p.current, p.form = "", Form{Text: map[string]string{}}
@@ -248,7 +271,20 @@ func (p *Sort) Undo(ctx context.Context) (domain.LibraryEntry, error) {
 	}
 	p.queue.Add(e.OriginalPath)
 	p.last = nil
+	p.undoneCorrection(e)
 	return e, nil
+}
+
+// correction hands a log line to OnCorrection.
+func (p *Sort) correction(c inbox.Correction) {
+	if p.OnCorrection != nil {
+		p.OnCorrection(c)
+	}
+}
+
+// undoneCorrection logs that a filing was undone; the log keeps its lines.
+func (p *Sort) undoneCorrection(e domain.LibraryEntry) {
+	p.correction(inbox.Correction{At: p.filer.Now(), SHA256: e.SHA256, TypeID: e.TypeID, Undone: true})
 }
 
 // Preview renders a page (0-based, clamped) of a document at about 150 dpi and
