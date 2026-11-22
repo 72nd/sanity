@@ -19,8 +19,22 @@ import (
 	"unsafe"
 )
 
-// ocrScale renders scans at about 250 dpi.
-const ocrScale = 3.5
+// OCRPage runs Vision on one page with explicit options and returns the text
+// (empty when nothing was found). It is meant for tuning with the ocrdump tool.
+func OCRPage(path string, page int, o OCROptions) (string, error) {
+	cp := C.CString(path)
+	defer C.free(unsafe.Pointer(cp))
+	var errp *C.char
+	t := C.sanity_ocr_page(cp, C.int(page), C.double(o.Scale), C.double(o.MinTextHeight), &errp)
+	if t == nil {
+		if errp != nil {
+			return "", cerr(errp)
+		}
+		return "", nil
+	}
+	defer C.free(unsafe.Pointer(t))
+	return C.GoString(t), nil
+}
 
 type engine struct {
 	once sync.Once
@@ -104,16 +118,10 @@ func (e *engine) Text(path string, page int) (PageText, error) {
 	if !scan || !e.OCRAvailable() {
 		return res, nil
 	}
-	o := C.sanity_ocr_page(cp, C.int(page), C.double(ocrScale), &errp)
-	if o == nil {
-		if errp != nil {
-			C.free(unsafe.Pointer(errp)) // OCR failed: the layer stays the fallback
-		}
-		return res, nil
-	}
-	defer C.free(unsafe.Pointer(o))
-	if s := C.GoString(o); strings.TrimSpace(s) != "" {
-		res.Text, res.Source = s, SourceVision
+	// OCR failing or finding nothing leaves the layer as the fallback. A good
+	// layer also stays when the OCR text is much shorter (see PreferOCR).
+	if ocr, err := OCRPage(path, page, DefaultOCR); err == nil && PreferOCR(layer, ocr) {
+		res.Text, res.Source = ocr, SourceVision
 	}
 	return res, nil
 }

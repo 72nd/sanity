@@ -118,8 +118,12 @@ char *sanity_page_text(const char *path, int page, double *pageW, double *pageH,
   }
 }
 
-static NSString *recognize(CGImageRef img, NSString **errOut) {
+// minHeight is Vision's minimum text height relative to the image height. Its
+// default (about 1/32) skips the small print of a receipt on an A4 page, so
+// callers pass a smaller value; 0 keeps Vision's default.
+static NSString *recognize(CGImageRef img, double minHeight, NSString **errOut) {
   VNRecognizeTextRequest *req = [[VNRecognizeTextRequest alloc] init];
+  if (minHeight > 0) req.minimumTextHeight = (float)minHeight;
   req.recognitionLevel = VNRequestTextRecognitionLevelAccurate;
   req.recognitionLanguages = @[@"de-DE", @"en-US"];
   req.usesLanguageCorrection = YES;
@@ -137,7 +141,7 @@ static NSString *recognize(CGImageRef img, NSString **errOut) {
   return out;
 }
 
-char *sanity_ocr_page(const char *path, int page, double scale, char **err) {
+char *sanity_ocr_page(const char *path, int page, double scale, double minHeight, char **err) {
   @autoreleasepool {
     PDFDocument *d = openDoc(path, err);
     if (!d) return NULL;
@@ -147,7 +151,7 @@ char *sanity_ocr_page(const char *path, int page, double scale, char **err) {
     CGImageRef img = CGBitmapContextCreateImage(c);
     CGContextRelease(c);
     NSString *e = nil;
-    NSString *s = recognize(img, &e);
+    NSString *s = recognize(img, minHeight, &e);
     CGImageRelease(img);
     if (!s) { setErr(err, e); return NULL; }
     if (s.length == 0) return NULL;
@@ -171,7 +175,7 @@ int sanity_ocr_available(void) {
     [NSGraphicsContext restoreGraphicsState];
     CGImageRef img = CGBitmapContextCreateImage(c);
     CGContextRelease(c);
-    NSString *s = recognize(img, NULL);
+    NSString *s = recognize(img, 0, NULL);
     CGImageRelease(img);
     return s.length > 0 ? 1 : 0;
   }

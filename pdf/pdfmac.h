@@ -18,7 +18,7 @@ char *sanity_page_text(const char *path, int page, double *pageW, double *pageH,
 
 // Renders the page at scale and runs Vision OCR on it. Returns NULL with err
 // NULL when OCR found nothing.
-char *sanity_ocr_page(const char *path, int page, double scale, char **err);
+char *sanity_ocr_page(const char *path, int page, double scale, double minHeight, char **err);
 
 // Warm-up: OCR of a tiny generated image with text. Returns 1 when Vision read it.
 int sanity_ocr_available(void);

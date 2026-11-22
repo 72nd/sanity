@@ -14,3 +14,6 @@ func (stub) Render(string, int, float64) (image.Image, error) { return nil, ErrU
 func (stub) Text(string, int) (PageText, error)               { return PageText{}, ErrUnsupported }
 func (stub) Dates(string) []string                            { return nil }
 func (stub) OCRAvailable() bool                               { return false }
+
+// OCRPage is only implemented on macOS.
+func OCRPage(string, int, OCROptions) (string, error) { return "", ErrUnsupported }

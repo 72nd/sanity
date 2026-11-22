@@ -69,10 +69,10 @@ func TestMetaAndRender(t *testing.T) {
 			}
 			t.Logf("render 72dpi page 0: %v", d)
 			start = time.Now()
-			if _, err := e.Render(f, 0, ocrScale); err != nil {
+			if _, err := e.Render(f, 0, DefaultOCR.Scale); err != nil {
 				t.Fatal(err)
 			}
-			t.Logf("render at OCR scale %.1f: %v", ocrScale, time.Since(start))
+			t.Logf("render at OCR scale %.1f: %v", DefaultOCR.Scale, time.Since(start))
 			if _, err := e.Render(f, m.Pages, 1); err == nil {
 				t.Fatal("expected error for page out of range")
 			}

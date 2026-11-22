@@ -110,3 +110,22 @@ func LowQuality(text string) bool {
 	}
 	return len(tokens) > 0 && float64(single)/float64(len(tokens)) > maxSingleTokens
 }
+
+// PreferOCR decides whether the Vision text should replace the embedded text
+// layer of a page that was classified as a scan. An empty OCR result never
+// wins. A low-quality layer (Paperless/Tesseract garbage) yields unless the OCR
+// text is much shorter; a good layer is only replaced by comparable OCR text,
+// so a Vision run that missed small print cannot make the result worse.
+func PreferOCR(layer, ocr string) bool {
+	l, o := len([]rune(strings.TrimSpace(layer))), len([]rune(strings.TrimSpace(ocr)))
+	switch {
+	case o == 0:
+		return false
+	case l == 0:
+		return true
+	case LowQuality(layer):
+		return o*2 >= l
+	default:
+		return o*4 >= l*3
+	}
+}
