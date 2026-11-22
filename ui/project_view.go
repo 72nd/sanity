@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/driver/desktop"
 	fynetheme "fyne.io/fyne/v2/theme"
 
@@ -98,6 +99,33 @@ type projectWidgets struct {
 	recentBox           *fyne.Container
 }
 
+// gap is an empty, fixed-height spacer between stacked blocks.
+func gap(h float32) fyne.CanvasObject {
+	r := canvas.NewRectangle(nil)
+	r.SetMinSize(fyne.NewSize(1, h))
+	return r
+}
+
+// stack lays out blocks top to bottom with h between them.
+func stack(h float32, blocks ...fyne.CanvasObject) fyne.CanvasObject {
+	objs := make([]fyne.CanvasObject, 0, 2*len(blocks))
+	for i, b := range blocks {
+		if i > 0 {
+			objs = append(objs, gap(h))
+		}
+		objs = append(objs, b)
+	}
+	return widgets.VBox(objs...)
+}
+
+// Spacing of the project page: between fields, between cards, and before the
+// recent projects, which are a section of their own.
+const (
+	fieldGap   = 12
+	cardGap    = 20
+	sectionGap = 40
+)
+
 // ProjectPage builds the project page: name, root, inbox, own identifiers and
 // the recent projects.
 func ProjectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) fyne.CanvasObject {
@@ -111,7 +139,7 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 
 	name := widgets.NewEntry()
 	nameRow := widgets.NewFormRow(i18n.T("project.name"), name)
-	rootLabel := widgets.NewLabel("", widgets.LabelBody)
+	rootLabel := widgets.NewLabel("", widgets.LabelMono)
 	revealBtn := widgets.NewButton(i18n.T("project.root.reveal"), widgets.ButtonSecondary, func() {
 		if err := inbox.Reveal(p.Root()); err != nil {
 			notify(theme.StatusDanger, i18n.T("project.reveal.failed", "Reason", err.Error()))
@@ -214,8 +242,13 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 			if current {
 				open.Disable()
 			}
-			text := widgets.VBox(widgets.NewLabel(r.Name, widgets.LabelBody), widgets.NewLabel(root, widgets.LabelSmall))
-			recentBox.Add(widgets.HBox(text, widgets.Spacer(), open))
+			title := widgets.NewLabel(r.Name, widgets.LabelBody)
+			title.Bold = true
+			text := stack(4, title, widgets.NewLabel(root, widgets.LabelMono))
+			if recentBox.Objects != nil {
+				recentBox.Add(gap(8))
+			}
+			recentBox.Add(widgets.NewCard("", "", widgets.HBox(text, widgets.Spacer(), open)))
 		}
 		recentBox.Refresh()
 	}
@@ -224,10 +257,11 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 		widgets.ShowFolderOpen(sh.Win, widgets.FolderDialogOptions{StartDir: start}, func(dir string) { RequestSwitch(sh, nav, dir) })
 	})
 
-	basics := widgets.NewCard(i18n.T("project.card.basics"), "", widgets.VBox(nameRow, rootRow, inboxRow))
-	idents := widgets.NewCard(i18n.T("project.card.ignore"), i18n.T("project.card.ignore.desc"), widgets.VBox(ignoreRow, hint))
-	recent := widgets.NewCard(i18n.T("project.card.recent"), "", widgets.VBox(recentBox, widgets.HBox(openOther)))
-	body := widgets.Scroll(widgets.PagePadded(widgets.MaxWidth(720, widgets.VBox(basics, idents, recent))))
+	basics := widgets.NewCard(i18n.T("project.card.basics"), "", stack(fieldGap, nameRow, rootRow, inboxRow))
+	idents := widgets.NewCard(i18n.T("project.card.ignore"), i18n.T("project.card.ignore.desc"), stack(6, ignoreRow, hint))
+	recent := stack(fieldGap, widgets.NewLabel(i18n.T("project.card.recent"), widgets.LabelHeading), recentBox, widgets.HBox(openOther))
+	body := widgets.Scroll(widgets.PagePadded(widgets.MaxWidth(720,
+		stack(cardGap, basics, idents, gap(sectionGap-cardGap), recent))))
 	bar := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, 6,
 		widgets.HBox(state, widgets.Spacer(), revertBtn, saveBtn))
 	page := widgets.Border(bar, nil, nil, nil, body)
