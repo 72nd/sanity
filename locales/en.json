@@ -1,0 +1,19 @@
+{
+  "app.title": "sanity",
+  "nav.library": "Library",
+  "col.date": "Date",
+  "col.type": "Type",
+  "col.path": "File",
+  "col.invoice": "Invoice no.",
+  "col.amount": "Amount",
+  "col.filedAt": "Filed at",
+  "library.filter.placeholder": "Filter documents…",
+  "library.loading.title": "Loading library…",
+  "library.loading.desc": "Reading the project file.",
+  "library.empty.title": "No documents filed yet",
+  "library.empty.desc": "Filed documents show up here.",
+  "library.inbox.hint": "{{.Count}} documents wait in the inbox",
+  "status.rows": "{{.Shown}} of {{.Total}} documents",
+  "status.selected": "{{.Count}} selected",
+  "toast.load.failed": "Could not load the project"
+}

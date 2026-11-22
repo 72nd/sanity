@@ -1,0 +1,19 @@
+{
+  "app.title": "sanity",
+  "nav.library": "Bibliothek",
+  "col.date": "Datum",
+  "col.type": "Typ",
+  "col.path": "Datei",
+  "col.invoice": "Rechnungsnr.",
+  "col.amount": "Betrag",
+  "col.filedAt": "Abgelegt am",
+  "library.filter.placeholder": "Dokumente filtern…",
+  "library.loading.title": "Bibliothek wird geladen…",
+  "library.loading.desc": "Die Projektdatei wird gelesen.",
+  "library.empty.title": "Noch nichts abgelegt",
+  "library.empty.desc": "Abgelegte Dokumente erscheinen hier.",
+  "library.inbox.hint": "{{.Count}} Dokumente warten im Eingang",
+  "status.rows": "{{.Shown}} von {{.Total}} Dokumenten",
+  "status.selected": "{{.Count}} ausgewählt",
+  "toast.load.failed": "Das Projekt konnte nicht geladen werden"
+}

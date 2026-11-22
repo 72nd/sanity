@@ -1,0 +1,43 @@
+# Consumer-side version of the fine repository's lint rules. The module path
+# below changes when you copy the starter; the globs match the layout
+# domain/, store/, ui/presenter/, ui/.
+version: "2"
+linters:
+  default: none
+  enable: [govet, staticcheck, unused, errcheck, depguard, forbidigo]
+  settings:
+    depguard:
+      rules:
+        no-raw-fyne-widgets:
+          files: ["$all"]
+          deny:
+            - pkg: fyne.io/fyne/v2/widget
+              desc: use github.com/72nd/fine/widgets
+            - pkg: fyne.io/fyne/v2/dialog
+              desc: use the shell's toasts and dialogs
+            - pkg: fyne.io/fyne/v2/container
+              desc: use github.com/72nd/fine/widgets layouts
+        domain-store-no-ui:
+          files: ["**/domain/**", "**/store/**"]
+          deny:
+            - pkg: fyne.io
+              desc: domain and store must not import UI
+            - pkg: github.com/72nd/fine/shell
+              desc: domain and store must not import UI
+            - pkg: github.com/72nd/fine/widgets
+              desc: domain and store must not import UI
+            - pkg: github.com/72nd/fine/theme
+              desc: domain and store must not import UI
+        presenter-no-fyne:
+          files: ["**/ui/presenter/**", "!$test"]
+          deny:
+            - pkg: fyne.io
+              desc: presenters stay headless-testable
+    forbidigo:
+      forbid:
+        - pattern: 'color\.(NRGBA|RGBA)\{'
+          msg: use theme tokens from github.com/72nd/fine/theme
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [forbidigo]

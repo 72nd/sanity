@@ -1,0 +1,35 @@
+version: '3'
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  test:
+    desc: Run all tests, including the architecture test
+    cmds:
+      - go test ./...
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: Run golangci-lint (needs golangci-lint v2 installed)
+    cmds:
+      - golangci-lint run ./...
+
+  check:
+    desc: Run vet, test and lint in sequence
+    cmds:
+      - task: vet
+      - task: test
+      - task: lint
+
+  run:
+    desc: Run the app
+    cmds:
+      - go run .
