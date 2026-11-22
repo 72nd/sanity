@@ -20,3 +20,6 @@ end run`
 	}
 	return nil
 }
+
+// Open opens the file in the default application (the PDF viewer).
+func Open(path string) error { return exec.Command("open", path).Run() }

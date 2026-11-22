@@ -118,3 +118,47 @@ func TestUndoNothing(t *testing.T) {
 		t.Error("expected error")
 	}
 }
+
+func TestUndoBatchUndoesOnlyTheLastBatch(t *testing.T) {
+	f, root, st := newFiler(t)
+	ctx := context.Background()
+	dir := filepath.Join(root, "office", "inbox")
+	single := writePDF(t, dir, "single.pdf")
+	if _, err := f.File(ctx, req(single)); err != nil {
+		t.Fatal(err)
+	}
+	batch := f.NewBatch()
+	var srcs []string
+	for i, d := range []int{1, 2, 3} {
+		src := writePDF(t, dir, string(rune('a'+i))+".pdf")
+		srcs = append(srcs, src)
+		r := req(src)
+		r.Values.Date = time.Date(2025, 4, d, 0, 0, 0, 0, time.UTC)
+		r.Batch = batch
+		if _, err := f.File(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := f.LastBatchSize(); n != 3 {
+		t.Fatalf("batch size %d", n)
+	}
+	got, err := f.UndoBatch(ctx)
+	if err != nil || len(got) != 3 {
+		t.Fatalf("undone %d, err %v", len(got), err)
+	}
+	for _, s := range srcs {
+		if _, err := os.Stat(s); err != nil {
+			t.Errorf("not restored: %v", err)
+		}
+	}
+	lib, _ := st.Library(ctx)
+	if len(lib) == 0 || !f.CanUndo() {
+		t.Fatal("the single filing before the batch must stay")
+	}
+	if f.LastBatchSize() != 0 {
+		t.Error("single filing counted as batch")
+	}
+	if got, err := f.UndoBatch(ctx); err != nil || len(got) != 1 {
+		t.Errorf("UndoBatch on a single filing: %d, %v", len(got), err)
+	}
+}

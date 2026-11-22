@@ -17,10 +17,42 @@ static PDFDocument *openDoc(const char *path, char **err) {
   return d;
 }
 
-int sanity_meta(const char *path, char **producer, char **creator, double *created, int *hasCreated, char **err) {
+// Document handle table: the Go side keeps a small LRU of open documents so
+// Meta/Render/page text do not reopen the file per call. A handle is used by
+// one goroutine at a time (the Go side leases it); the table is locked.
+static NSMutableDictionary<NSNumber *, PDFDocument *> *gDocs;
+static long gNextDoc = 1;
+
+long sanity_doc_open(const char *path, char **err) {
+  @autoreleasepool {
+    PDFDocument *d = openDoc(path, err);
+    if (!d) return 0;
+    @synchronized([PDFDocument class]) {
+      if (!gDocs) gDocs = [NSMutableDictionary dictionary];
+      long h = gNextDoc++;
+      gDocs[@(h)] = d;
+      return h;
+    }
+  }
+}
+
+void sanity_doc_close(long h) {
+  @synchronized([PDFDocument class]) { [gDocs removeObjectForKey:@(h)]; }
+}
+
+// The document of a handle, or a fresh uncached one when h is 0.
+static PDFDocument *docFor(const char *path, long h, char **err) {
+  if (h <= 0) return openDoc(path, err);
+  PDFDocument *d = nil;
+  @synchronized([PDFDocument class]) { d = gDocs[@(h)]; }
+  if (!d) setErr(err, @"document handle closed");
+  return d;
+}
+
+int sanity_meta(long h, const char *path, char **producer, char **creator, double *created, int *hasCreated, char **err) {
   @autoreleasepool {
     *producer = NULL; *creator = NULL; *hasCreated = 0; *created = 0;
-    PDFDocument *d = openDoc(path, err);
+    PDFDocument *d = docFor(path, h, err);
     if (!d) return -1;
     NSDictionary *a = d.documentAttributes;
     id p = a[PDFDocumentProducerAttribute];
@@ -63,9 +95,9 @@ static CGContextRef renderPage(PDFDocument *d, int page, double scale, size_t *o
   return c;
 }
 
-unsigned char *sanity_render(const char *path, int page, double scale, int *w, int *h, char **err) {
+unsigned char *sanity_render(long dh, const char *path, int page, double scale, int *w, int *h, char **err) {
   @autoreleasepool {
-    PDFDocument *d = openDoc(path, err);
+    PDFDocument *d = docFor(path, dh, err);
     if (!d) return NULL;
     size_t cw, ch;
     CGContextRef c = renderPage(d, page, scale, &cw, &ch);
@@ -104,10 +136,10 @@ static void pageImageDims(CGPDFPageRef cp, int *iw, int *ih) {
   *iw = d.w; *ih = d.h;
 }
 
-char *sanity_page_text(const char *path, int page, double *pageW, double *pageH, int *imgW, int *imgH, char **err) {
+char *sanity_page_text(long h, const char *path, int page, double *pageW, double *pageH, int *imgW, int *imgH, char **err) {
   @autoreleasepool {
     *pageW = *pageH = 0; *imgW = *imgH = 0;
-    PDFDocument *d = openDoc(path, err);
+    PDFDocument *d = docFor(path, h, err);
     if (!d) return NULL;
     if (page < 0 || page >= (int)d.pageCount) { setErr(err, @"page out of range"); return NULL; }
     PDFPage *p = [d pageAtIndex:page];

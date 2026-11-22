@@ -49,3 +49,19 @@ type Engine interface {
 	// OCRAvailable reports whether Vision returns text (false inside the agent sandbox).
 	OCRAvailable() bool
 }
+
+// Closer is implemented by engines that keep documents open (the macOS
+// engine). Evict forgets one file, which callers do after filing, moving or
+// trashing it; Close drops everything. Check with EvictPath instead of
+// asserting by hand.
+type Closer interface {
+	Evict(path string)
+	Close()
+}
+
+// EvictPath calls Evict when the engine keeps documents open.
+func EvictPath(e Engine, path string) {
+	if c, ok := e.(Closer); ok {
+		c.Evict(path)
+	}
+}

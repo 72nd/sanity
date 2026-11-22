@@ -21,11 +21,15 @@ type Request struct {
 	TextHash  string
 	Overrides []string
 	Text      string // normalized analysis text, optional; passed to OnFiled
+	// Batch groups filings made in one go (see NewBatch); UndoBatch undoes
+	// them together. Empty for a single filing.
+	Batch string
 }
 
 type filed struct {
 	move  Move
 	entry domain.LibraryEntry
+	batch string
 }
 
 // Filer files documents (always a move) and undoes the last filings.
@@ -43,6 +47,8 @@ type Filer struct {
 	mu   sync.Mutex
 	undo []filed
 	seq  int
+
+	batchSeq int
 }
 
 // NewFiler creates a filer for the project root.
@@ -83,7 +89,7 @@ func (f *Filer) File(ctx context.Context, r Request) (domain.LibraryEntry, error
 		return domain.LibraryEntry{}, err
 	}
 	f.mu.Lock()
-	f.undo = append(f.undo, filed{mv, e})
+	f.undo = append(f.undo, filed{mv, e, r.Batch})
 	f.mu.Unlock()
 	if f.OnFiled != nil {
 		f.OnFiled(e, r.Text)
@@ -121,6 +127,51 @@ func (f *Filer) UndoLast(ctx context.Context) (domain.LibraryEntry, error) {
 		f.OnUndone(last.entry)
 	}
 	return last.entry, nil
+}
+
+// NewBatch returns a fresh batch id for Request.Batch.
+func (f *Filer) NewBatch() string {
+	f.mu.Lock()
+	f.batchSeq++
+	n := f.batchSeq
+	f.mu.Unlock()
+	return "batch-" + itoa(n)
+}
+
+// LastBatchSize is the number of filings at the end of the undo stack that
+// belong to the same batch as the last one; 0 when the last filing was not
+// part of a batch.
+func (f *Filer) LastBatchSize() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := len(f.undo)
+	if n == 0 || f.undo[n-1].batch == "" {
+		return 0
+	}
+	id, c := f.undo[n-1].batch, 0
+	for i := n - 1; i >= 0 && f.undo[i].batch == id; i-- {
+		c++
+	}
+	return c
+}
+
+// UndoBatch undoes every filing of the last batch in one step (newest first).
+// When the last filing is not part of a batch it undoes just that one. It
+// stops at the first error and returns the entries undone so far.
+func (f *Filer) UndoBatch(ctx context.Context) ([]domain.LibraryEntry, error) {
+	n := f.LastBatchSize()
+	if n == 0 {
+		n = 1
+	}
+	var out []domain.LibraryEntry
+	for i := 0; i < n; i++ {
+		e, err := f.UndoLast(ctx)
+		if err != nil {
+			return out, err
+		}
+		out = append(out, e)
+	}
+	return out, nil
 }
 
 func (f *Filer) nextID(now time.Time) string {
