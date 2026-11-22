@@ -34,6 +34,12 @@ func choiceLabels(cs []presenter.Choice) []string {
 	return out
 }
 
+// dropdown turns a choice column into a drop-down over the labels of choices.
+func dropdown(col grid.Column[presenter.RuleRow], choices func() []presenter.Choice) grid.Column[presenter.RuleRow] {
+	col.Options = func(presenter.RuleRow) []string { return choiceLabels(choices()) }
+	return col
+}
+
 // ruleColumns builds the editable rule grid. Choice columns take the id or the
 // localized label as text; the presenter validates it.
 func ruleColumns(p *presenter.Types) []grid.Column[presenter.RuleRow] {
@@ -58,7 +64,8 @@ func ruleColumns(p *presenter.Types) []grid.Column[presenter.RuleRow] {
 				r.Rule.Enabled = on
 				return nil
 			}},
-		choice("kind", i18n.T("col.kind"), 110, p.KindChoices, func(r presenter.RuleRow) string { return r.Rule.Kind }, p.SetRuleKind),
+		dropdown(choice("kind", i18n.T("col.kind"), 130, p.KindChoices, func(r presenter.RuleRow) string { return r.Rule.Kind }, p.SetRuleKind),
+			p.KindChoices),
 		{ID: "value", Title: i18n.T("col.value"), Width: 280, Editable: true,
 			Value: func(r presenter.RuleRow) string { return r.Rule.Value },
 			Set: func(r *presenter.RuleRow, text string) error {

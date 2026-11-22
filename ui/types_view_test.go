@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/72nd/fine/shell"
 	"github.com/72nd/fine/shell/i18n"
+	"github.com/72nd/fine/widgets/grid"
 	"github.com/72nd/sanity/locales"
 	"github.com/72nd/sanity/store"
 	"github.com/72nd/sanity/ui/presenter"
@@ -42,5 +44,33 @@ func TestTypesPageShowsRules(t *testing.T) {
 	}
 	if tp.Dirty() {
 		t.Error("dirty after opening")
+	}
+}
+
+// The Kind cell is a drop-down: its options are the kind labels and a pick
+// goes through the presenter.
+func TestRuleKindIsDropdown(t *testing.T) {
+	test.NewTempApp(t)
+	i18n.MustAddFiles(locales.FS, locales.Files...)
+	i18n.SetLanguage("en")
+	tp := presenter.NewTypes(store.NewFake(), i18n.T)
+	if err := tp.Load(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	cols := ruleColumns(tp)
+	g := grid.New(cols)
+	g.SetItems(tp.Rules())
+	w := test.NewTempWindow(t, g)
+	w.Resize(fyne.NewSize(900, 300))
+	if !g.StartEdit(0, 1) || !g.Editing() {
+		t.Fatal("kind cell did not open an editor")
+	}
+	target := choiceLabels(tp.KindChoices())[2]
+	g.SetEditText(target)
+	if !g.CommitEdit() {
+		t.Fatal("pick rejected")
+	}
+	if got := presenter.LabelOf(tp.KindChoices(), tp.Rules()[0].Rule.Kind); got != target {
+		t.Errorf("kind = %q, want %q", got, target)
 	}
 }
