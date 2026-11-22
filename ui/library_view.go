@@ -65,16 +65,18 @@ func LibraryPage(sh *shell.Shell, p *presenter.Library) fyne.CanvasObject {
 	if p.Loaded() {
 		show() // show the old data at once, refresh below
 	}
-	go func() { // never block the UI thread on the store
-		err := p.Load(context.Background())
-		fyne.Do(func() {
-			if err != nil {
-				sh.Toasts.Notify(theme.StatusDanger, i18n.T("toast.load.failed"), 6*time.Second)
-				return
-			}
-			show()
-		})
-	}()
+	if !p.Fresh() {
+		go func() { // never block the UI thread on the store
+			err := p.Load(context.Background())
+			fyne.Do(func() {
+				if err != nil {
+					sh.Toasts.Notify(theme.StatusDanger, i18n.T("toast.load.failed"), 6*time.Second)
+					return
+				}
+				show()
+			})
+		}()
+	}
 
 	bar := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, 6, filter)
 	return widgets.Border(bar, nil, nil, nil, widgets.Stack(g, loading))

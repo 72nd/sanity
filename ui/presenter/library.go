@@ -29,6 +29,7 @@ type Library struct {
 	T      Translator
 	rows   []Row
 	loaded bool
+	at     time.Time
 }
 
 // NewLibrary creates the presenter.
@@ -53,9 +54,16 @@ func (p *Library) Load(ctx context.Context) error {
 		rows = append(rows, r)
 	}
 	sort.SliceStable(rows, func(i, j int) bool { return rows[i].Entry.Date.After(rows[j].Entry.Date) })
-	p.rows, p.loaded = rows, true
+	p.rows, p.loaded, p.at = rows, true, time.Now()
 	return nil
 }
+
+// freshFor is how long loaded data is shown without asking the store again.
+const freshFor = 2 * time.Second
+
+// Fresh reports whether the data was loaded a moment ago, so a page that is
+// shown again right away needs no reload.
+func (p *Library) Fresh() bool { return p.loaded && time.Since(p.at) < freshFor }
 
 // Total is the number of filed documents.
 func (p *Library) Total() int { return len(p.rows) }

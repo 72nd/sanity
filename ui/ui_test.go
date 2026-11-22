@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -38,6 +39,11 @@ func newShell(t *testing.T, pdfs int) (*shell.Shell, *presenter.Sort, *presenter
 	q := inbox.NewQueue(nil)
 	q.Add(dir)
 	lib := presenter.NewLibrary(st, i18n.T)
+	// Loaded up front: the Fyne test driver runs fyne.Do on the calling goroutine,
+	// so a background load would lay the page out concurrently with the test.
+	if err := lib.Load(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	sp := presenter.NewSort(st, q, inbox.NewFiler(root, st), pdf.NewFake(), i18n.T)
 	act := NewSortActions()
 	sh := shell.New(app, shell.Config{TitleKey: "app.title", Pages: Pages(lib, sp, q, act, presenter.NewKeys(nil), presenter.NewTypes(st, i18n.T)), Width: 1200, Height: 760})
@@ -145,5 +151,31 @@ func walk(o fyne.CanvasObject, fn func(fyne.CanvasObject)) {
 		for _, c := range v.Objects {
 			walk(c, fn)
 		}
+	}
+}
+
+// Cmd+Shift+V imports what Finder copied and shows the first new document.
+func TestPasteFilesImportsClipboardPDFs(t *testing.T) {
+	sh, sp, _ := newShell(t, 1)
+	sh.Show("sort")
+	settle()
+	extra := filepath.Join(t.TempDir(), "pasted.pdf")
+	if err := os.WriteFile(extra, []byte("%PDF"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := clipboardFiles
+	clipboardFiles = func() []string { return []string{extra, "/no/such/file.pdf"} }
+	defer func() { clipboardFiles = old }()
+
+	before := sp.Count()
+	if !sh.Registry.Run("sort.paste") {
+		t.Fatal("command missing")
+	}
+	settle()
+	if sp.Count() != before+1 {
+		t.Fatalf("queue %d -> %d, want one more", before, sp.Count())
+	}
+	if cur, _ := sp.Current(); cur.Path != extra {
+		t.Errorf("current %q, want the pasted file", cur.Path)
 	}
 }

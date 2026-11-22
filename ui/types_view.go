@@ -118,7 +118,13 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 	rules.AccessibleLabel = i18n.T("types.rules")
 	rules.Key = func(r presenter.RuleRow) string { return strconv.Itoa(r.Index) }
 	rules.StretchLast = true
-	rulesBox := withMinHeight(240, rules)
+	// The grid is as tall as its rows (header included), between three rows and
+	// a limit; beyond that it scrolls on its own.
+	rulesBox := withFitHeight(func() float32 {
+		row := theme.Size(theme.SizeRow)
+		return min(max(float32(rules.Len()+1)*row+8, 4*row), 12*row)
+	}, rules)
+	relayout := func() {} // set once the page scroll exists; the grid height changes with the rule count
 
 	// --- date ---
 	preferred := widgets.NewEntry()
@@ -192,6 +198,8 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 			threshold.SetValue(cur.Threshold)
 			learned.SetOn(cur.UseLearned)
 			rules.SetItems(p.Rules())
+			rulesBox.Refresh()
+			relayout()
 			setText(preferred, presenter.JoinList(cur.Date.PreferredLabels))
 			setText(ignored, presenter.JoinList(cur.Date.IgnoreLabels))
 			source.SetSelected(presenter.LabelOf(p.SourceChoices(), cur.Date.Source))
@@ -291,6 +299,8 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 	addRule := widgets.NewButton(i18n.T("types.rule.add"), widgets.ButtonSecondary, func() {
 		i := p.AddRule()
 		rules.SetItems(p.Rules())
+		rulesBox.Refresh()
+		relayout()
 		rules.SelectKeys([]string{strconv.Itoa(i)})
 		refreshState()
 	})
@@ -305,6 +315,8 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 			p.RemoveRule(i)
 		}
 		rules.SetItems(p.Rules())
+		rulesBox.Refresh()
+		relayout()
 		refreshState()
 	})
 
@@ -395,6 +407,7 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 		widgets.NewFormRow(i18n.T("types.date.maxage"), maxAge),
 	))
 	body := widgets.Scroll(widgets.PagePadded(widgets.VBox(basics, recognition, dateCard)))
+	relayout = body.Refresh
 	bar := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, 6,
 		widgets.HBox(state, widgets.Spacer(), revertBtn, saveBtn))
 	detailPane = widgets.Border(bar, nil, nil, nil, body)

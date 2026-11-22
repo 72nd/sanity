@@ -14,9 +14,13 @@ import (
 	"github.com/72nd/fine/theme"
 	"github.com/72nd/fine/widgets"
 	"github.com/72nd/fine/widgets/grid"
+	"github.com/72nd/sanity/clipboard"
 	"github.com/72nd/sanity/inbox"
 	"github.com/72nd/sanity/ui/presenter"
 )
+
+// clipboardFiles reads the files Finder copied; tests replace it.
+var clipboardFiles = clipboard.FilePaths
 
 func queueColumns() []grid.Column[inbox.Item] {
 	return []grid.Column[inbox.Item]{
@@ -300,6 +304,20 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	act.Import = func(paths ...string) {
 		if p.Import(paths...) {
 			showDoc()
+		}
+	}
+	act.PasteFiles = func() {
+		paths := clipboardFiles()
+		if len(paths) == 0 {
+			notify(theme.StatusWarning, i18n.T("toast.paste.none"))
+			return
+		}
+		before := p.Count()
+		act.Import(paths...)
+		if n := p.Count() - before; n > 0 {
+			notify(theme.StatusInfo, i18n.T("toast.pasted", "Count", strconv.Itoa(n)))
+		} else {
+			notify(theme.StatusWarning, i18n.T("toast.paste.none"))
 		}
 	}
 	act.AddFiles = func() {
