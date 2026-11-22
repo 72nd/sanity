@@ -1,0 +1,23 @@
+---
+description: Day-to-day CHANGELOG.md updates after completed tasks
+alwaysApply: true
+---
+
+# Changelog (day-to-day)
+
+Two logs exist:
+
+- **`CHANGELOG.md`** — developer log (English, short).
+- **`frontend/src/help/whatsNew.ts`** — user-facing release notes (German). **Do not** update during normal tasks.
+
+After every completed task, add a bullet at the **end** of the **last `##` heading** in `CHANGELOG.md` (newest version is last in the file). Merge similar bullets when that reads better.
+
+```
+- TYPE: Short description
+```
+
+`TYPE`: `FEAT`, `FIX`, `DOCS`, `REFACTOR`, `PERF`, `TEST`, `CHORE`, `STYLE`, `REVERT`, `CI` (ALL CAPS).
+
+Suggest **two** concise commit messages (lowercase Conventional Commits prefix: `feat:`, `fix:`, …).
+
+Publishing is two steps in `.cursor/rules/changelog-publish.mdc` (only when the user asks): finalize the current version (summary + `whatsNew.ts`, then they build and push the tag), then bump to the next version.
