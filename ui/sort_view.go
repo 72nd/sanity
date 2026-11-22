@@ -15,6 +15,7 @@ import (
 	"github.com/72nd/fine/widgets"
 	"github.com/72nd/fine/widgets/grid"
 	"github.com/72nd/sanity/clipboard"
+	"github.com/72nd/sanity/domain"
 	"github.com/72nd/sanity/inbox"
 	"github.com/72nd/sanity/ui/presenter"
 )
@@ -331,6 +332,21 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 			notify(theme.StatusWarning, i18n.T("toast.paste.none"))
 		}
 	}
+	act.LearnRules = func() {
+		go func() {
+			sug, err := p.SuggestRules(context.Background())
+			fyne.Do(func() {
+				switch {
+				case err != nil:
+					notify(theme.StatusWarning, err.Error())
+				case len(sug) == 0:
+					notify(theme.StatusInfo, i18n.T("sort.learn.none"))
+				default:
+					showLearnDialog(sh, p, sug, notify)
+				}
+			})
+		}()
+	}
 	act.AddFiles = func() {
 		widgets.ShowFileOpen(sh.Win, widgets.FileDialogOptions{Extensions: []string{".pdf"}}, func(r io.ReadCloser, path string) {
 			r.Close()
@@ -403,6 +419,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 
 	fileBtn := widgets.NewButton(i18n.T("sort.file"), widgets.ButtonPrimary, func() { act.File() })
 	skipBtn := widgets.NewButton(i18n.T("sort.skip"), widgets.ButtonSecondary, func() { act.Skip() })
+	learnBtn := widgets.NewButton(i18n.T("sort.learn"), widgets.ButtonSecondary, func() { act.LearnRules() })
 	addBtn := widgets.NewButton(i18n.T("sort.add"), widgets.ButtonSecondary, func() { act.AddFiles() })
 
 	form := widgets.VBox(
@@ -412,7 +429,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		widgets.NewFormRow(i18n.T("sort.invoice"), w.invoice),
 		widgets.NewFormRow(i18n.T("sort.amount"), w.amount),
 		pathLabel, hint,
-		widgets.HBox(fileBtn, skipBtn),
+		widgets.HBox(fileBtn, skipBtn, learnBtn),
 	)
 	side := widgets.Border(nil, widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeTop, 6, addBtn), nil, nil, w.queue)
 	right := widgets.Scroll(widgets.PagePadded(widgets.NewCard(i18n.T("sort.form.title"), "", form)))
@@ -492,4 +509,37 @@ func copyPath(sh *shell.Shell, p *presenter.Sort, abs bool, notify func(theme.St
 	}
 	sh.App.Clipboard().SetContent(path)
 	notify(theme.StatusInfo, i18n.T("toast.copied", "Path", path))
+}
+
+// showLearnDialog lets the user tick the rules to add to the selected type.
+func showLearnDialog(sh *shell.Shell, p *presenter.Sort, sug []presenter.RuleSuggestion, notify func(theme.Status, string)) {
+	ticked := make([]bool, len(sug))
+	rows := make([]*widgets.FormRow, 0, len(sug))
+	for i, s := range sug {
+		ticked[i] = s.Checked
+		c := widgets.NewCheck(s.Label, func(on bool) { ticked[i] = on })
+		c.SetChecked(s.Checked)
+		rows = append(rows, widgets.NewFormRow("", c))
+	}
+	widgets.ShowForm(sh.Win, i18n.T("sort.learn.title"), rows, i18n.T("sort.learn.confirm"), func(ok bool) {
+		if !ok {
+			return
+		}
+		var picked []domain.Rule
+		for i, s := range sug {
+			if ticked[i] {
+				picked = append(picked, s.Rule)
+			}
+		}
+		go func() {
+			err := p.LearnRules(context.Background(), picked)
+			fyne.Do(func() {
+				if err != nil {
+					notify(theme.StatusDanger, err.Error())
+					return
+				}
+				notify(theme.StatusSuccess, i18n.T("sort.learn.done", "Count", strconv.Itoa(len(picked))))
+			})
+		}()
+	})
 }

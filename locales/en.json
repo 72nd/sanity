@@ -152,5 +152,17 @@
   "cmd.sort.pagenext": "Next page of the document",
   "cmd.sort.pageprev": "Previous page of the document",
   "cmd.sort.scrolldown": "Scroll preview down",
-  "cmd.sort.scrollup": "Scroll preview up"
+  "cmd.sort.scrollup": "Scroll preview up",
+  "sort.learn": "Learn rules…",
+  "sort.learn.title": "Learn rules from this document",
+  "sort.learn.confirm": "Add rules",
+  "sort.learn.none": "No new identifiers found in this document.",
+  "sort.learn.done": "{{.Count}} rule(s) added to the type",
+  "sort.learn.kind.iban": "IBAN",
+  "sort.learn.kind.vatId": "VAT ID",
+  "sort.learn.kind.domain": "Domain",
+  "sort.learn.kind.customerNo": "Customer no.",
+  "error.learn.type": "Select a type first.",
+  "error.learn.analysis": "The document has not been analysed yet.",
+  "cmd.sort.learn": "Learn rules from this document"
 }

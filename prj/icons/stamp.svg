@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b6b7d"/><stop offset="1" stop-color="#0b3441"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#e9eef0"/>
+    </linearGradient>
+    <clipPath id="body"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+    <filter id="sh" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <filter id="sh2" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#sh)"/>
+  <g clip-path="url(#body)">
+    <!-- sheet, bleeds off the bottom -->
+    <g transform="rotate(-6 512 560)" filter="url(#sh2)">
+      <path d="M262 200 H650 L790 340 V1000 H262 Z" fill="url(#paper)"/>
+      <path d="M650 200 V340 H790 Z" fill="#c5d0d4"/>
+      <g fill="#b3c0c6">
+        <rect x="320" y="270" width="250" height="26" rx="13"/>
+        <rect x="320" y="340" width="150" height="26" rx="13"/>
+        <rect x="320" y="800" width="380" height="26" rx="13"/>
+        <rect x="320" y="870" width="300" height="26" rx="13"/>
+      </g>
+    </g>
+    <!-- stamp impression -->
+    <g transform="rotate(-16 545 560)" fill="none" stroke="#e5482b" opacity="0.94">
+      <circle cx="545" cy="560" r="215" stroke-width="30"/>
+      <circle cx="545" cy="560" r="168" stroke-width="10"/>
+      <path d="M455 565 L525 635 L650 490" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+</svg>

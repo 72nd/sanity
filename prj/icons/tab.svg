@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2d3445"/><stop offset="1" stop-color="#141821"/>
+    </linearGradient>
+    <linearGradient id="back" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5a6580"/><stop offset="1" stop-color="#434c63"/>
+    </linearGradient>
+    <linearGradient id="front" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7684a3"/><stop offset="1" stop-color="#56627f"/>
+    </linearGradient>
+    <linearGradient id="tab" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffb23e"/><stop offset="1" stop-color="#f08a12"/>
+    </linearGradient>
+    <filter id="sh" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <filter id="sh2" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="-4" stdDeviation="8" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#sh)"/>
+  <!-- back panel with tab -->
+  <path d="M215 330 Q215 290 255 290 H435 Q470 290 490 318 L520 360 H770 Q810 360 810 400 V740 H215 Z" fill="url(#back)"/>
+  <!-- sheet -->
+  <rect x="285" y="245" width="454" height="400" rx="22" fill="#f4f6f8"/>
+  <g fill="#b6c0cc">
+    <rect x="345" y="305" width="230" height="26" rx="13"/>
+    <rect x="345" y="370" width="320" height="26" rx="13"/>
+  </g>
+  <!-- tab label -->
+  <path d="M560 360 V300 Q560 270 590 270 H735 Q765 270 765 300 V360 Z" fill="url(#tab)"/>
+  <!-- front panel -->
+  <path d="M185 520 Q185 480 225 480 H800 Q840 480 840 520 V770 Q840 810 800 810 H225 Q185 810 185 770 Z" fill="url(#front)" filter="url(#sh2)"/>
+  <rect x="185" y="480" width="655" height="8" rx="4" fill="#ffffff" opacity="0.25"/>
+</svg>

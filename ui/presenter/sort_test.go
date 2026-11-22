@@ -263,3 +263,57 @@ func TestPreviewPagesAndStep(t *testing.T) {
 		t.Error("cannot go past the last page")
 	}
 }
+
+const learnText = `Telekom Deutschland GmbH
+Rechnung R-1
+IBAN DE02 1203 0000 0000 2020 51
+USt-IdNr. DE987654321
+www.neuer-anbieter.example`
+
+func TestLearnRulesFromDocument(t *testing.T) {
+	p, _ := newSort(t, 1)
+	p.pdf = pdf.NewFake(learnText)
+	p.SetAnalyzer(&inbox.Analyzer{PDF: p.pdf, Store: p.store})
+	p.Step(0)
+	done := make(chan string, 1)
+	p.Analyse(context.Background(), func(id string) { done <- id })
+	<-done
+	ctx := context.Background()
+
+	if _, err := p.SuggestRules(ctx); err == nil {
+		t.Error("without a selected type there is nothing to extend")
+	}
+	typ := telekom(t, p)
+	p.SetType(typ.ID)
+	sug, err := p.SuggestRules(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kinds := map[string]bool{}
+	for _, s := range sug {
+		kinds[s.Rule.Kind] = true
+	}
+	if !kinds["iban"] || !kinds["vatId"] {
+		t.Fatalf("suggestions %v lack IBAN or VAT ID", kinds)
+	}
+	var picked []domain.Rule
+	for _, s := range sug {
+		if s.Rule.Kind == "iban" {
+			picked = append(picked, s.Rule)
+		}
+	}
+	if err := p.LearnRules(ctx, picked); err != nil {
+		t.Fatal(err)
+	}
+	after := telekom(t, p)
+	if len(after.Rules) != len(typ.Rules)+1 {
+		t.Errorf("rules %d -> %d, want one more", len(typ.Rules), len(after.Rules))
+	}
+	// the learned rule is not proposed a second time
+	again, _ := p.SuggestRules(ctx)
+	for _, s := range again {
+		if s.Rule.Kind == "iban" {
+			t.Error("a rule the type already has was suggested again")
+		}
+	}
+}

@@ -152,5 +152,17 @@
   "cmd.sort.pagenext": "Nächste Seite des Dokuments",
   "cmd.sort.pageprev": "Vorherige Seite des Dokuments",
   "cmd.sort.scrolldown": "Vorschau nach unten scrollen",
-  "cmd.sort.scrollup": "Vorschau nach oben scrollen"
+  "cmd.sort.scrollup": "Vorschau nach oben scrollen",
+  "sort.learn": "Regeln lernen…",
+  "sort.learn.title": "Regeln aus diesem Dokument lernen",
+  "sort.learn.confirm": "Regeln hinzufügen",
+  "sort.learn.none": "Keine neuen Kennungen in diesem Dokument gefunden.",
+  "sort.learn.done": "{{.Count}} Regel(n) zum Typ hinzugefügt",
+  "sort.learn.kind.iban": "IBAN",
+  "sort.learn.kind.vatId": "USt-IdNr.",
+  "sort.learn.kind.domain": "Domain",
+  "sort.learn.kind.customerNo": "Kundennr.",
+  "error.learn.type": "Zuerst einen Typ wählen.",
+  "error.learn.analysis": "Das Dokument wurde noch nicht analysiert.",
+  "cmd.sort.learn": "Regeln aus diesem Dokument lernen"
 }

@@ -15,6 +15,7 @@ type SortActions struct {
 	ZoomIn, ZoomOut, ZoomFit             func()
 	ScrollDown, ScrollUp, Search         func()
 	PageNext, PagePrev                   func()
+	LearnRules                           func()
 	Import                               func(paths ...string)
 	CopyRel, CopyAbs, Reveal, Remove     func()
 	First, Last                          func()
@@ -35,7 +36,7 @@ func NewSortActions() *SortActions {
 	return &SortActions{
 		File: nop, Undo: nop, Skip: nop, SkipBack: nop, AddFiles: nop,
 		ZoomIn: nop, ZoomOut: nop, ZoomFit: nop,
-		ScrollDown: nop, ScrollUp: nop, Search: nop, PageNext: nop, PagePrev: nop,
+		ScrollDown: nop, ScrollUp: nop, Search: nop, PageNext: nop, PagePrev: nop, LearnRules: nop,
 		Import: func(...string) {}, Focus: func(string) {}, shown: nop,
 		CopyRel: nop, CopyAbs: nop, Reveal: nop, Remove: nop, First: nop, Last: nop, PasteFiles: nop, SetMode: func(bool) {},
 	}
@@ -64,6 +65,7 @@ func Commands(a *SortActions) []shell.Command {
 		{ID: "sort.pageprev", Title: t("cmd.sort.pageprev"), Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyUp, Modifier: fyne.KeyModifierAlt}, Run: func() { a.PagePrev() }},
 		{ID: "sort.scrolldown", Title: t("cmd.sort.scrolldown"), Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyD, Modifier: fyne.KeyModifierControl}, Run: func() { a.ScrollDown() }},
 		{ID: "sort.scrollup", Title: t("cmd.sort.scrollup"), Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyU, Modifier: fyne.KeyModifierControl}, Run: func() { a.ScrollUp() }},
+		{ID: "sort.learn", Title: t("cmd.sort.learn"), Shortcut: shell.Ctrl(fyne.KeyL), Run: func() { a.LearnRules() }},
 		{ID: "sort.zoomin", Title: t("cmd.sort.zoomin"), Shortcut: shell.Ctrl(fyne.KeyEqual), Run: func() { a.ZoomIn() }},
 		{ID: "sort.zoomout", Title: t("cmd.sort.zoomout"), Shortcut: shell.Ctrl(fyne.KeyMinus), Run: func() { a.ZoomOut() }},
 		{ID: "sort.zoomfit", Title: t("cmd.sort.zoomfit"), Shortcut: shell.Ctrl(fyne.Key0), Run: func() { a.ZoomFit() }},
