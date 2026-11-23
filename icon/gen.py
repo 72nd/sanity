@@ -14,6 +14,7 @@ OUT = pathlib.Path(__file__).parent
 BG_TOP, BG_BOTTOM, INK = "#2fd0b8", "#0b5a63", "#eafff8"  # petrol (v0.2.0)
 DATE = "23.05"
 C = 512  # canvas is 1024; the macOS squircle is 824 wide with a 100 px margin
+SCALE = 1.12  # the Dock draws our icon smaller than its neighbours, so the squircle is 922 px, not 824
 TILT = -10  # the stamp sits slightly crooked
 
 # Seven-segment digits: segment -> (x1, y1, x2, y2) in a unit box.
@@ -93,10 +94,11 @@ def svg(motif, texture, colors=None):
         '<filter id="sh" x="-10%" y="-10%" width="120%" height="125%">'
         '<feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000" flood-opacity="0.32"/></filter>'
         f'{ink_filter}</defs>'
+        f'<g transform="translate({C} {C}) scale({SCALE}) translate({-C} {-C})">'
         '<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#sh)"/>'
         '<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#glow)"/>'
         f'<g transform="rotate({TILT} {C} {C})" fill="{ink}" stroke="{ink}" stroke-linecap="round"{filt}>{motif}</g>'
-        '</svg>')
+        '</g></svg>')
 
 
 def dots(n, r, dr):

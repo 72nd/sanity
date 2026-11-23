@@ -4,6 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2/app"
@@ -126,7 +127,11 @@ func main() {
 	// The Fyne app comes first: the welcome page is built inside shell.New and
 	// already lists the recent projects, so they read the preferences directly.
 	fyneApp := app.NewWithID("com.72nd.sanity")
-	fyneApp.SetIcon(appIcon())
+	if !inAppBundle() {
+		// Inside Sanity.app the Dock takes icon.icns; SetIcon would replace it at
+		// startup with the raw PNG, which the Dock draws smaller than its own icons.
+		fyneApp.SetIcon(appIcon())
+	}
 	a := &application{act: ui.NewSortActions(), keys: presenter.NewKeys(nil)}
 	a.recents = presenter.NewRecents(shell.NewPrefs(fyneApp.Preferences()))
 	root := ""
@@ -191,4 +196,10 @@ func main() {
 		a.act.Import(paths...)
 	})
 	a.sh.Run()
+}
+
+// inAppBundle reports whether the binary runs from a macOS .app bundle.
+func inAppBundle() bool {
+	exe, err := os.Executable()
+	return err == nil && strings.Contains(exe, ".app/Contents/MacOS/")
 }
