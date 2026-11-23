@@ -36,3 +36,10 @@
 - FIX: The Vim keys hint on the settings page wraps instead of running out of the window
 - STYLE: The project switcher sits at the left of the toolbar and opens a menu: projects with a folder icon (open one checked), then "Open project…" and "Overview" with their own icons below a separator
 - STYLE: Sort side panel rebuilt: header with document name and position, scrolling form (duplicate callout with icon, type, date, number and amount side by side), pinned footer with state (Missing/Ready, localized field names, target path) and actions; File is disabled until complete, the rest (learn rules, put back, adopt, delete) sits in a "more" menu; batch panel wraps and says why filing is blocked
+
+## Unreleased (v0.3.0)
+- FEAT: Sort: "Add files" (Cmd+O) selects several files at once (native dialog via `widgets.ShowFilesOpen`)
+- FEAT: Library: value filter per column (funnel icon in the header, Alt+Down), condition dialog (date, amount, text), multi-key sort and grouping by year, quarter or month with amount sums per currency in the group header
+- FEAT: Library: filter, sort and grouping are kept between visits and restarts; "Conditions (n)" button and "Clear all filters" next to the quick filter; the status bar counts shown documents
+- FEAT: Library commands: "Filter column" (Cmd+Alt+F, Vim `f`), "Filter conditions…" (Cmd+Shift+F, Vim `F`), "Clear all filters", "Remove grouping"
+- FIX: Library: amounts sort by value, not by text

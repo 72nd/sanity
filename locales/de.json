@@ -211,6 +211,7 @@
   "cmd.sort.batch": "Ausgewählte Dokumente ablegen",
   "cmd.sort.undobatch": "Letzten Stapel rückgängig",
   "sort.putback": "Zurücklegen",
+  "sort.inproject": "Im Projektordner",
   "sort.adopt": "Am Ort aufnehmen",
   "sort.delete": "Löschen",
   "cmd.sort.putback": "Dokument an den ursprünglichen Ort zurücklegen",
@@ -387,5 +388,18 @@
   "types.check.sample.weak": "Der Typ ist beim Muster {{.Argument}} nicht sicher.",
   "types.check.sample.others": "Ein anderer Typ erreicht beim Muster {{.Argument}} einen gleich hohen oder höheren Wert.",
   "types.check.library.falsePositive": "{{.Argument}} abgelegte Dokumente anderer Typen erreichen für diesen Typ ebenfalls einen hohen Wert.",
-  "types.check.library.skipped": "{{.Argument}} abgelegte Dokumente haben keinen zwischengespeicherten Text und wurden nicht geprüft."
+  "types.check.library.skipped": "{{.Argument}} abgelegte Dokumente haben keinen zwischengespeicherten Text und wurden nicht geprüft.",
+  "library.group.nodate": "Ohne Datum",
+  "library.group.year": "Jahr",
+  "library.group.quarter": "Quartal",
+  "library.group.month": "Monat",
+  "library.conditions": "Bedingungen",
+  "library.conditions.n": "Bedingungen ({{.Count}})",
+  "library.filters.clear": "Alle Filter löschen",
+  "cmd.library.filtercol": "Spalte filtern",
+  "cmd.library.conditions": "Filterbedingungen…",
+  "cmd.library.clearfilters": "Alle Filter löschen",
+  "cmd.library.ungroup": "Gruppierung aufheben",
+  "shortcuts.vim.filter.col": "Spalte filtern",
+  "shortcuts.vim.conditions": "Filterbedingungen"
 }

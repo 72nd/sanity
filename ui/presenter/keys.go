@@ -86,6 +86,8 @@ var keymaps = map[KeyContext]keymap{
 			'V': "select.rows",
 			'x': "reveal",
 			'r': "resort",
+			'f': "filter.col",
+			'F': "conditions",
 		},
 		seqs: map[string]string{
 			"gg": "row.first",
@@ -250,6 +252,7 @@ var keyDescriptions = map[string]string{
 	"row.down": "Row down", "row.up": "Row up", "row.last": "Last row", "row.first": "First row",
 	"hit.next": "Next search hit", "hit.prev": "Previous search hit", "select": "Select row",
 	"select.rows": "Select rows", "resort": "Sort again", "open": "Open document",
+	"filter.col": "Filter column", "conditions": "Conditions",
 }
 
 // KeyDescription returns the English fallback description of a vim command id,

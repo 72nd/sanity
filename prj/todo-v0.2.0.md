@@ -1,4 +1,4 @@
-# Todo's nach v0.1.
+# Todo's für v0.2.0
 
 - Bibliothek: **Extrem wichtig** die kopierbaren relativen Pfade müssen immer relativ zum office Ordner sein. Nicht zum Projekt root. Liegt also ein Dokument nicht innerhalb des office Ordners. Wird der relative Pfad eigentlich immer mit ../ beginnen. Das Path template in Types bleibt aber relativ zum Projektordner.
 - Versionierung: Im Programm soll immer die aktuelle Version im Footer angezeigt werden.

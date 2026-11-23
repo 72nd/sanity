@@ -211,6 +211,7 @@
   "cmd.sort.batch": "File selected documents",
   "cmd.sort.undobatch": "Undo last batch",
   "sort.putback": "Put back",
+  "sort.inproject": "In project folder",
   "sort.adopt": "Adopt in place",
   "sort.delete": "Delete",
   "cmd.sort.putback": "Put back document at its original location",
@@ -387,5 +388,18 @@
   "types.check.sample.weak": "The type is not confident on the sample {{.Argument}}.",
   "types.check.sample.others": "Another type scores as high or higher on the sample {{.Argument}}.",
   "types.check.library.falsePositive": "{{.Argument}} filed documents of other types also score high for this type.",
-  "types.check.library.skipped": "{{.Argument}} filed documents have no cached text and were not checked."
+  "types.check.library.skipped": "{{.Argument}} filed documents have no cached text and were not checked.",
+  "library.group.nodate": "No date",
+  "library.group.year": "Year",
+  "library.group.quarter": "Quarter",
+  "library.group.month": "Month",
+  "library.conditions": "Conditions",
+  "library.conditions.n": "Conditions ({{.Count}})",
+  "library.filters.clear": "Clear all filters",
+  "cmd.library.filtercol": "Filter column",
+  "cmd.library.conditions": "Filter conditions…",
+  "cmd.library.clearfilters": "Clear all filters",
+  "cmd.library.ungroup": "Remove grouping",
+  "shortcuts.vim.filter.col": "Filter column",
+  "shortcuts.vim.conditions": "Filter conditions"
 }

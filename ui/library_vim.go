@@ -66,6 +66,10 @@ func InstallLibraryVim(sh *shell.Shell, act *SortActions, keys *presenter.Keys) 
 			la.Resort()
 		case "open":
 			la.Open()
+		case "filter.col":
+			la.FilterColumn()
+		case "conditions":
+			la.Conditions()
 		}
 	}
 	la.Rune = func(r rune) bool {

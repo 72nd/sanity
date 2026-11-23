@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/72nd/fine/shell"
 	"github.com/72nd/fine/shell/i18n"
 	"github.com/72nd/fine/widgets"
+	"github.com/72nd/fine/widgets/grid"
 	"github.com/72nd/sanity/domain"
 	"github.com/72nd/sanity/inbox"
 	"github.com/72nd/sanity/locales"
@@ -195,5 +197,89 @@ func TestLibraryNavigation(t *testing.T) {
 	e.typeRunes("Vyy")
 	if n := len(strings.Split(*e.clip, "\n")); n != len(rows) {
 		t.Errorf("V selected %d rows of %d", n, len(rows))
+	}
+}
+
+// libGrid is the library grid of the page that was just built.
+func (e *libEnv) libGrid(t *testing.T) *grid.Grid[presenter.Row] {
+	t.Helper()
+	g, ok := e.act.Library.focus.(*grid.Grid[presenter.Row])
+	if !ok {
+		t.Fatalf("focus is %T", e.act.Library.focus)
+	}
+	return g
+}
+
+// Value filters count into the status bar: "n of m" shows the shown items
+// against the whole library, also while grouped.
+func TestLibraryStatusCountsGridFilter(t *testing.T) {
+	e := newLibEnv(t)
+	e.sh.Show("library")
+	g := e.libGrid(t)
+	total := e.lib.Total()
+	if got := e.sh.Status.Right()[0]; !strings.HasPrefix(got, strconv.Itoa(total)+" of "+strconv.Itoa(total)) {
+		t.Fatalf("status = %q", got)
+	}
+	g.SetValueFilter(1, &grid.ValueFilter{Col: "type", Only: true, Values: []string{e.lib.Visible("")[0].TypeName}})
+	shown := g.ItemCount()
+	if shown == 0 || shown >= total {
+		t.Fatalf("filter shows %d of %d", shown, total)
+	}
+	if got := e.sh.Status.Right()[0]; !strings.HasPrefix(got, strconv.Itoa(shown)+" of "+strconv.Itoa(total)) {
+		t.Errorf("status after filter = %q, want %d of %d", got, shown, total)
+	}
+	g.SetGroupBy([]grid.GroupBy{{Col: "date", Key: presenter.GroupYear}})
+	if g.Len() <= g.ItemCount() {
+		t.Fatalf("grouping adds header rows: len %d items %d", g.Len(), g.ItemCount())
+	}
+	if got := e.sh.Status.Right()[0]; !strings.HasPrefix(got, strconv.Itoa(shown)+" of ") {
+		t.Errorf("status when grouped = %q", got)
+	}
+	// Vim movement across group headers keeps working and never copies a header.
+	e.typeRunes("gg")
+	e.typeRunes("yy")
+	e.typeRunes("Vyy")
+	if n := len(strings.Split(*e.clip, "\n")); n != shown {
+		t.Errorf("V selected %d rows, want %d", n, shown)
+	}
+}
+
+// The grid state is saved in the preferences and restored when the page is
+// rebuilt, before the first rows are shown.
+func TestLibraryGridStatePersists(t *testing.T) {
+	e := newLibEnv(t)
+	e.sh.Show("library")
+	g := e.libGrid(t)
+	g.SetSortKeys([]grid.SortKey{{Col: "amount", Desc: true}})
+	g.SetGroupBy([]grid.GroupBy{{Col: "date", Key: presenter.GroupMonth}})
+	g.SetConditions(grid.Conditions{Items: []grid.Condition{{Col: "amount", Op: grid.OpGt, Values: []string{"10"}}}})
+	if !e.sh.Prefs.LoadJSON(libraryGridKey, new(grid.State)) {
+		t.Fatal("state was not saved")
+	}
+	e.sh.Show("types")
+	e.sh.Show("library")
+	g2 := e.libGrid(t)
+	if g2 == g {
+		t.Fatal("page was not rebuilt")
+	}
+	if keys := g2.SortKeys(); len(keys) != 1 || keys[0].Col != "amount" || !keys[0].Desc {
+		t.Errorf("sort = %+v", keys)
+	}
+	if gb := g2.GroupBy(); len(gb) != 1 || gb[0].Col != "date" || gb[0].Key != presenter.GroupMonth {
+		t.Errorf("group = %+v", gb)
+	}
+	if c := g2.Conditions(); len(c.Items) != 1 || c.Items[0].Op != grid.OpGt {
+		t.Errorf("conditions = %+v", c)
+	}
+	if g2.ItemCount() != g.ItemCount() {
+		t.Errorf("shown %d, before %d", g2.ItemCount(), g.ItemCount())
+	}
+	e.sh.Registry.Run("library.clearfilters")
+	if g2.FilterActive() {
+		t.Error("clear all filters left a filter")
+	}
+	e.sh.Registry.Run("library.ungroup")
+	if len(g2.GroupBy()) != 0 {
+		t.Error("ungroup left a grouping")
 	}
 }

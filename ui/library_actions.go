@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/driver/desktop"
 
 	"github.com/72nd/fine/shell"
 	"github.com/72nd/fine/shell/i18n"
@@ -20,10 +21,13 @@ import (
 // the Library only and does nothing elsewhere.
 type LibraryActions struct {
 	Search, CopyRel, CopyAbs, Reveal, Resort, Remove, Open func()
-	Move                                                   func(delta int) // rows down (positive) or up
-	Jump                                                   func(first bool)
-	Hit                                                    func(forward bool) // n / N
-	Visual                                                 func(all bool)     // v extends from here, V selects all rows
+	// FilterColumn opens the value picker of the active column, Conditions
+	// the condition dialog; ClearFilters and Ungroup reset the grid view.
+	FilterColumn, Conditions, ClearFilters, Ungroup func()
+	Move                                            func(delta int) // rows down (positive) or up
+	Jump                                            func(first bool)
+	Hit                                             func(forward bool) // n / N
+	Visual                                          func(all bool)     // v extends from here, V selects all rows
 	// Rune handles a typed rune of the Vim layer; true means it was used.
 	Rune func(r rune) bool
 	// SetMode is called with true for normal mode (grid focus) and false for
@@ -37,6 +41,7 @@ type LibraryActions struct {
 // NewLibraryActions returns actions that do nothing until the page exists.
 func NewLibraryActions() *LibraryActions {
 	return &LibraryActions{
+		FilterColumn: nop, Conditions: nop, ClearFilters: nop, Ungroup: nop,
 		Search: nop, CopyRel: nop, CopyAbs: nop, Reveal: nop, Resort: nop, Remove: nop, Open: nop,
 		Move: func(int) {}, Jump: func(bool) {}, Hit: func(bool) {}, Visual: func(bool) {},
 		Rune: func(rune) bool { return false }, SetMode: func(bool) {},
@@ -76,14 +81,20 @@ func libraryAware(a *SortActions, cmds []shell.Command) []shell.Command {
 			onSort()
 		}
 	}
-	return append(cmds, shell.Command{
-		ID:       "library.resort",
-		Title:    func() string { return i18n.T("cmd.library.resort") },
-		Shortcut: shell.Ctrl(fyne.KeyE),
-		Run: func() {
+	only := func(id, title string, sc *desktop.CustomShortcut, run func()) shell.Command {
+		return shell.Command{ID: id, Title: func() string { return i18n.T(title) }, Shortcut: sc, Run: func() {
 			if lib.Active() {
-				lib.Resort()
+				run()
 			}
-		},
-	})
+		}}
+	}
+	return append(cmds,
+		only("library.resort", "cmd.library.resort", shell.Ctrl(fyne.KeyE), func() { lib.Resort() }),
+		only("library.filtercol", "cmd.library.filtercol",
+			&desktop.CustomShortcut{KeyName: fyne.KeyF, Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierAlt}, func() { lib.FilterColumn() }),
+		only("library.conditions", "cmd.library.conditions",
+			&desktop.CustomShortcut{KeyName: fyne.KeyF, Modifier: fyne.KeyModifierShortcutDefault | fyne.KeyModifierShift}, func() { lib.Conditions() }),
+		only("library.clearfilters", "cmd.library.clearfilters", nil, func() { lib.ClearFilters() }),
+		only("library.ungroup", "cmd.library.ungroup", nil, func() { lib.Ungroup() }),
+	)
 }

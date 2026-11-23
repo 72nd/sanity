@@ -62,7 +62,7 @@ func ShowShortcuts(sh *shell.Shell) {
 	filter.SetPlaceHolder(i18n.T("shortcuts.filter"))
 	filter.OnChanged = render
 	content := withFitHeight(func() float32 { return 460 },
-		widgets.Border(filter, nil, nil, nil, widgets.Scroll(widgets.PagePadded(widgets.Columns(left, right)))))
+		widgets.Border(filter, nil, nil, nil, widgets.VScroll(widgets.PagePadded(widgets.Columns(left, right)))))
 	dlg := widgets.ShowDialog(sh.Win, i18n.T("shortcuts.title"), content, widgets.DialogOptions{
 		MinWidth:    720,
 		CancelLabel: i18n.T("shortcuts.close"),

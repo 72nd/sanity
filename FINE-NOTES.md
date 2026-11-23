@@ -8,7 +8,7 @@ Gaps, bugs and surprises found while building sanity. Newest first.
 - No vertical gap helper: the batch plan separates its groups with a `canvas.Rectangle` in the surface color sized by `SizePagePad`; a `widgets.Gap(token)` would be cleaner.
 - `widgets.Label` has no ellipsis truncation (`truncateText` is unexported), so the document name in the panel header wraps instead.
 - A wrapping Label cannot break a long path before its first character: a leading "→ " ended up alone on a line, so the target path is shown without the arrow.
-- Toasts overlay the bottom right of the window, i.e. the pinned footer actions of a right-hand panel; a toast host that avoids panels (or sits above the status bar) would help.
+- (Fixed in fine) Toasts used to overlay the bottom right, covering the pinned footer actions of a right-hand panel. `ToastHost` now stacks in the bottom-left over the status bar.
 
 ## 2026-11-22 (F1 ImageView, F2 DateEntry)
 
@@ -68,3 +68,18 @@ Gaps, bugs and surprises found while building sanity. Newest first.
 - A `Command` has one shortcut; Cmd++ needs three commands (`+`, `=`, Shift+`=`) that show up several times in the palette and the shortcut dialog. `Command.Aliases` or a `Hidden` flag would be cleaner.
 - `Sort.LoadTypes` writes `p.types` from a goroutine (latent race, as at the first load).
 - After "Overview" only the welcome page commands are active; Library/Sort shortcuts are not checked for nil safety without a project.
+
+## 2026-11-23 (v0.3.0 filters)
+
+Library page now uses the grid's value filters, conditions, multi-key sort and grouping.
+
+- Fyne 2.8.2's file dialog has no multi-select. fine therefore got `widgets.ShowFilesOpen` via zenity (native, non-modal); Sort -> "Add files" uses it.
+- `ItemAt(v)` returns nil for group header rows and `Len()` counts them. Every loop over `0..Len()` needs a nil check; a `ForEachRow` or `RowAt(v) (T, bool)` helper would be safer. sanity builds a view-aligned slice with zero Rows as headers (`viewRows`) and `NextHit` skips rows without an entry id.
+- No getter for the active (keyboard) column. The "Filter column" command opens the picker by replaying Alt+Down (`KeyDown(AltLeft)`, `TypedKey(Down)`, `KeyUp`). A public `ActiveColumn()` or `OpenFilterActive()` would remove the hack.
+- `SelectView(v)` / vim movement may land on a group header; selecting a header selects nothing, so actions must ignore it (`selection()` returns no rows there).
+- The conditions button label needs the number of active conditions: `len(g.Conditions().Items)` also counts rows the dialog keeps but the grid dropped, if any; there is no `ConditionCount()`.
+- `OnViewChanged` fires for every `SetItems`, also during page build before widgets that the callback touches exist; define the callback after those widgets.
+- Date columns: the value picker lists the formatted `Value` text sorted by `Less`, so a date picker shows "03.04.2026" entries, not year/month. Groupings cover that; a picker with date ranges would be better.
+- `Aggregate` receives the items of the whole group at all levels; no way to show a count next to the label of the header (only the aggregate cell per column).
+- `ShowConditions` operates on the grid's own columns; conditions on `Kind` number ignore the currency (sanity's amount column compares cents/100 only).
+

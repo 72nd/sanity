@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/driver/desktop"
 	fynetheme "fyne.io/fyne/v2/theme"
 
 	"github.com/72nd/fine/shell"
@@ -17,28 +18,8 @@ import (
 	"github.com/72nd/sanity/ui/presenter"
 )
 
-func libraryColumns(p *presenter.Library) []grid.Column[presenter.Row] {
-	return []grid.Column[presenter.Row]{
-		{ID: "date", Title: i18n.T("col.date"), Width: 110,
-			Value: func(r presenter.Row) string { return p.DateText(r.Entry.Date) },
-			Less:  func(a, b presenter.Row) bool { return a.Entry.Date.Before(b.Entry.Date) }},
-		{ID: "type", Title: i18n.T("col.type"), Width: 170,
-			Value: func(r presenter.Row) string { return r.TypeName },
-			Less:  func(a, b presenter.Row) bool { return a.TypeName < b.TypeName }},
-		{ID: "path", Title: i18n.T("col.path"), Width: 460,
-			Value: func(r presenter.Row) string { return r.Entry.Path },
-			Less:  func(a, b presenter.Row) bool { return a.Entry.Path < b.Entry.Path }},
-		{ID: "invoice", Title: i18n.T("col.invoice"), Width: 130,
-			Value: func(r presenter.Row) string { return r.Entry.Invoice },
-			Less:  func(a, b presenter.Row) bool { return a.Entry.Invoice < b.Entry.Invoice }},
-		{ID: "amount", Title: i18n.T("col.amount"), Width: 110, Align: grid.AlignRight,
-			Value: func(r presenter.Row) string { return r.Entry.Amount },
-			Less:  func(a, b presenter.Row) bool { return a.Entry.Amount < b.Entry.Amount }},
-		{ID: "filed", Title: i18n.T("col.filedAt"), Width: 150,
-			Value: func(r presenter.Row) string { return p.FiledText(r.Entry.FiledAt) },
-			Less:  func(a, b presenter.Row) bool { return a.Entry.FiledAt.Before(b.Entry.FiledAt) }},
-	}
-}
+// libraryGridKey is the preferences key of the library grid state.
+const libraryGridKey = "library.grid"
 
 // LibraryPage builds the start page: a hint when documents wait in the inbox,
 // a quick filter above the grid of all filed documents, counts and the total
@@ -55,10 +36,18 @@ func LibraryPage(sh *shell.Shell, p *presenter.Library, act *SortActions) fyne.C
 	la.focus = g
 	notify := func(st theme.Status, msg string) { sh.Toasts.Notify(st, msg, toastDur(4*time.Second)) }
 
+	// The grid state (widths, sort, filters, conditions, grouping) comes back
+	// before the first SetItems, so the view is right at once.
+	var state grid.State
+	if sh.Prefs.LoadJSON(libraryGridKey, &state) {
+		g.SetState(state)
+	}
+	g.OnStateChanged = func(s grid.State) { sh.Prefs.SaveJSON(libraryGridKey, s) }
+
 	var visual bool // v is active: movement extends the selection
 	anchor := 0     // view row where v was pressed
 	var own, restoring bool
-	status := func() { sh.Status.SetRight(p.SelectionStatus(g.Len(), g.Selected())...) }
+	status := func() { sh.Status.SetRight(p.SelectionStatus(g.ItemCount(), g.Selected())...) }
 	g.OnSelectionChanged = func() {
 		if !own {
 			visual = false
@@ -69,20 +58,24 @@ func LibraryPage(sh *shell.Shell, p *presenter.Library, act *SortActions) fyne.C
 		status()
 	}
 
-	// selection is the selected rows, or the row under the cursor.
+	// selection is the selected rows, or the row under the cursor (none on a
+	// group header).
 	selection := func() []presenter.Row {
 		if rows := g.Selected(); len(rows) > 0 {
 			return rows
 		}
-		if c := g.CursorView(); c >= 0 && c < g.Len() {
-			return []presenter.Row{*g.ItemAt(c)}
+		if it := g.ItemAt(g.CursorView()); it != nil {
+			return []presenter.Row{*it}
 		}
 		return nil
 	}
+	// viewRows are the rows as shown: a group header is a zero Row (no entry id).
 	viewRows := func() []presenter.Row {
 		rows := make([]presenter.Row, g.Len())
 		for i := range rows {
-			rows[i] = *g.ItemAt(i)
+			if it := g.ItemAt(i); it != nil {
+				rows[i] = *it
+			}
 		}
 		return rows
 	}
@@ -108,7 +101,9 @@ func LibraryPage(sh *shell.Shell, p *presenter.Library, act *SortActions) fyne.C
 		}
 		keys := make([]string, 0, hi-lo+1)
 		for i := v; i >= lo && i <= hi; i += -step { // cursor end first: SelectKeys puts the cursor there
-			keys = append(keys, g.Key(*g.ItemAt(i)))
+			if it := g.ItemAt(i); it != nil { // group headers are skipped
+				keys = append(keys, g.Key(*it))
+			}
 		}
 		g.SelectKeys(keys)
 		g.ScrollTo(v)
@@ -120,6 +115,26 @@ func LibraryPage(sh *shell.Shell, p *presenter.Library, act *SortActions) fyne.C
 		}
 		return rows, len(rows) > 0
 	}
+
+	condBtn := widgets.NewButton(p.ConditionsLabel(0), widgets.ButtonToolbar, func() { g.ShowConditions(sh.Win) })
+	condBtn.SetIcon(fynetheme.IconNameSearch)
+	clearBtn := widgets.NewButton(i18n.T("library.filters.clear"), widgets.ButtonToolbar, func() { g.ClearFilters() })
+	clearBtn.SetIcon(fynetheme.IconNameCancel)
+	// toolbar shows the number of active conditions and the clear button only
+	// while a filter is active.
+	toolbar := func() {
+		condBtn.SetLabel(p.ConditionsLabel(len(g.Conditions().Items)))
+		if g.FilterActive() {
+			clearBtn.Show()
+		} else {
+			clearBtn.Hide()
+		}
+	}
+	g.OnViewChanged = func() {
+		status()
+		toolbar()
+	}
+	toolbar()
 
 	filter := widgets.NewEntry()
 	filter.SetPlaceHolder(i18n.T("library.filter.placeholder"))
@@ -287,6 +302,16 @@ func LibraryPage(sh *shell.Shell, p *presenter.Library, act *SortActions) fyne.C
 			goTo(j)
 		}
 	}
+	la.FilterColumn = func() {
+		// The grid has no getter for the active column; Alt+Down opens the
+		// picker there (see FINE-NOTES.md).
+		g.KeyDown(&fyne.KeyEvent{Name: desktop.KeyAltLeft})
+		g.TypedKey(&fyne.KeyEvent{Name: fyne.KeyDown})
+		g.KeyUp(&fyne.KeyEvent{Name: desktop.KeyAltLeft})
+	}
+	la.Conditions = func() { g.ShowConditions(sh.Win) }
+	la.ClearFilters = func() { g.ClearFilters() }
+	la.Ungroup = func() { g.SetGroupBy(nil) }
 	la.Visual = func(all bool) {
 		switch {
 		case all:
@@ -294,7 +319,9 @@ func LibraryPage(sh *shell.Shell, p *presenter.Library, act *SortActions) fyne.C
 			own = true
 			keys := make([]string, 0, g.Len())
 			for i := 0; i < g.Len(); i++ {
-				keys = append(keys, g.Key(*g.ItemAt(i)))
+				if it := g.ItemAt(i); it != nil {
+					keys = append(keys, g.Key(*it))
+				}
 			}
 			g.SelectKeys(keys)
 			own = false
@@ -316,7 +343,8 @@ func LibraryPage(sh *shell.Shell, p *presenter.Library, act *SortActions) fyne.C
 		})
 	}
 
-	bar := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, 6, filter)
+	bar := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, 6,
+		widgets.Border(nil, nil, nil, widgets.HBox(condBtn, clearBtn), filter))
 	return widgets.Border(widgets.VBox(hintBar, bar), nil, nil, nil, widgets.Stack(g, loading))
 }
 

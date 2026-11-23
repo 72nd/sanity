@@ -21,7 +21,8 @@ func matches(r Row, q string) bool {
 // NextHit returns the index in rows of the next (forward) or previous row that
 // matches query, starting beside from and wrapping around. It returns -1 when
 // no row matches. An empty query matches every row, so n and N then step
-// through the rows. rows is the order the grid shows, which may be sorted.
+// through the rows. rows is the order the grid shows, which may be sorted and
+// grouped: group header rows are zero Rows (empty entry id) and never hit.
 func (p *Library) NextHit(rows []Row, from int, query string, forward bool) int {
 	q := strings.ToLower(strings.TrimSpace(query))
 	n := len(rows)
@@ -31,7 +32,7 @@ func (p *Library) NextHit(rows []Row, from int, query string, forward bool) int 
 	}
 	for i := 1; i <= n; i++ {
 		j := ((from+step*i)%n + n) % n
-		if matches(rows[j], q) {
+		if rows[j].Entry.ID != "" && matches(rows[j], q) {
 			return j
 		}
 	}
