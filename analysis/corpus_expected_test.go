@@ -17,6 +17,11 @@ type expectedDoc struct {
 	Invoice  *string `json:"invoice"`
 	Amount   string  `json:"amount"`
 	Currency string  `json:"currency"`
+
+	// Type settings the document would be filed under (optional).
+	Statement    bool     `json:"statement"`
+	TypeCurrency string   `json:"typeCurrency"`
+	AmountLabels []string `json:"amountLabels"`
 }
 
 // TestCorpusExpected compares the top date, invoice and amount candidate with
@@ -53,7 +58,7 @@ func TestCorpusExpected(t *testing.T) {
 				parts = append(parts, pt.Text)
 			}
 		}
-		text := Normalize(strings.Join(parts, "\n"))
+		text := PairColumns(Normalize(strings.Join(parts, "\n")))
 		if strings.TrimSpace(text) == "" {
 			t.Logf("%s: no text (OCR available: %v)", name, eng.OCRAvailable())
 			continue
@@ -67,10 +72,14 @@ func TestCorpusExpected(t *testing.T) {
 			t.Logf("MISS %s %s: got %q, want %q", name, field, got, exp)
 		}
 		var date, amount, invoice string
-		if c := FindDates(text, time.Now(), DetectLanguage(text), domain.DateConfig{}); len(c) > 0 {
-			date = c[0].Date.Format("2006-01-02")
+		cands := FindDates(text, time.Now(), DetectLanguage(text), domain.DateConfig{})
+		if len(cands) > 0 {
+			date = cands[0].Date.Format("2006-01-02")
 		}
-		if a := FindAmount(text); len(a) > 0 {
+		if sc, ok := StatementDate(cands); ok && want.Statement {
+			date = sc.Date.Format("2006-01-02")
+		}
+		if a := FindAmountFor(text, domain.AmountConfig{PreferredLabels: want.AmountLabels}, want.TypeCurrency); len(a) > 0 {
 			amount = fmtCents(a[0])
 		}
 		if inv := FindInvoice(text, ""); len(inv) > 0 {
