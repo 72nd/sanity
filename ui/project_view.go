@@ -2,7 +2,7 @@ package ui
 
 import (
 	"context"
-	"path/filepath"
+	"image/color"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -99,12 +99,11 @@ type projectWidgets struct {
 	nameRow, inboxRow   *widgets.FormRow
 	ignoreRow           *widgets.FormRow
 	save, revert        *widgets.Button
-	recentBox           *fyne.Container
 }
 
 // gap is an empty, fixed-height spacer between stacked blocks.
 func gap(h float32) fyne.CanvasObject {
-	r := canvas.NewRectangle(nil)
+	r := canvas.NewRectangle(color.Transparent)
 	r.SetMinSize(fyne.NewSize(1, h))
 	return r
 }
@@ -127,10 +126,13 @@ const (
 	fieldGap   = 12
 	cardGap    = 20
 	sectionGap = 40
+	// minCardWidth is the narrowest a card column may get before the cards
+	// stack into one column.
+	minCardWidth = 420
 )
 
 // ProjectPage builds the project page: name, root, inbox, own identifiers and
-// the recent projects.
+// a button back to the overview.
 func ProjectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) fyne.CanvasObject {
 	obj, _ := projectPage(sh, p, nav)
 	return obj
@@ -156,11 +158,11 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 	ignore := widgets.NewTextArea()
 	ignore.SetMinRowsVisible(5)
 	ignoreRow := widgets.NewFormRow(i18n.T("project.ignore"), ignore)
-	hint := widgets.NewLabel(i18n.T("project.ignore.hint"), widgets.LabelSmall)
+	hint := widgets.NewWrapLabel(i18n.T("project.ignore.hint"), widgets.LabelSmall)
 	statement := widgets.NewTextArea()
 	statement.SetMinRowsVisible(3)
 	statementRow := widgets.NewFormRow(i18n.T("project.statement"), statement)
-	statementHint := widgets.NewLabel(i18n.T("project.statement.hint"), widgets.LabelSmall)
+	statementHint := widgets.NewWrapLabel(i18n.T("project.statement.hint"), widgets.LabelSmall)
 
 	state := widgets.NewLabel("", widgets.LabelMuted)
 	saveBtn := widgets.NewButton(i18n.T("project.save"), widgets.ButtonPrimary, nil)
@@ -237,42 +239,19 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 		}()
 	}
 
-	// --- recent projects ---
-	recentBox := widgets.VBox().(*fyne.Container)
-	fillRecents := func() {
-		recentBox.Objects = nil
-		list := nav.Recents.List()
-		if len(list) == 0 {
-			recentBox.Add(widgets.NewLabel(i18n.T("project.recent.empty"), widgets.LabelMuted))
+	overviewBtn := widgets.NewButton(i18n.T("project.overview"), widgets.ButtonSecondary, func() {
+		if nav.Overview != nil {
+			nav.Overview()
 		}
-		for _, r := range list {
-			root := r.Root
-			current := filepath.Clean(root) == filepath.Clean(p.Root())
-			open := widgets.NewButton(i18n.T("project.open"), widgets.ButtonSecondary, func() { RequestSwitch(sh, nav, root) })
-			if current {
-				open.Disable()
-			}
-			title := widgets.NewLabel(r.Name, widgets.LabelBody)
-			title.Bold = true
-			text := stack(4, title, widgets.NewLabel(root, widgets.LabelMono))
-			if recentBox.Objects != nil {
-				recentBox.Add(gap(8))
-			}
-			recentBox.Add(widgets.NewCard("", "", widgets.HBox(text, widgets.Spacer(), open)))
-		}
-		recentBox.Refresh()
-	}
-	openOther := widgets.NewButton(i18n.T("project.open.other"), widgets.ButtonSecondary, func() {
-		start := filepath.Dir(p.Root())
-		widgets.ShowFolderOpen(sh.Win, widgets.FolderDialogOptions{StartDir: start}, func(dir string) { RequestSwitch(sh, nav, dir) })
 	})
 
 	basics := widgets.NewCard(i18n.T("project.card.basics"), "", stack(fieldGap, nameRow, rootRow, inboxRow))
 	idents := widgets.NewCard(i18n.T("project.card.ignore"), i18n.T("project.card.ignore.desc"), stack(6, ignoreRow, hint))
 	statements := widgets.NewCard(i18n.T("project.card.statement"), i18n.T("project.card.statement.desc"), stack(6, statementRow, statementHint))
-	recent := stack(fieldGap, widgets.NewLabel(i18n.T("project.card.recent"), widgets.LabelHeading), recentBox, widgets.HBox(openOther))
-	body := widgets.Scroll(widgets.PagePadded(widgets.MaxWidth(720,
-		stack(cardGap, basics, idents, statements, gap(sectionGap-cardGap), recent))))
+	cards := widgets.ResponsiveColumns(minCardWidth, cardGap,
+		basics, stack(cardGap, idents, statements))
+	body := widgets.VScroll(widgets.PagePadded(widgets.MaxWidth(1200,
+		stack(cardGap, cards, gap(sectionGap-cardGap), widgets.HBox(overviewBtn)))))
 	bar := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, 6,
 		widgets.HBox(state, widgets.Spacer(), revertBtn, saveBtn))
 	page := widgets.Border(bar, nil, nil, nil, body)
@@ -287,11 +266,10 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 				notify(theme.StatusDanger, i18n.T("toast.load.failed"))
 			}
 			populate()
-			fillRecents()
 		})
 	})
 	return page, &projectWidgets{name: name, inbox: inboxEntry, ignore: ignore, statement: statement, nameRow: nameRow, inboxRow: inboxRow,
-		ignoreRow: ignoreRow, save: saveBtn, revert: revertBtn, recentBox: recentBox}
+		ignoreRow: ignoreRow, save: saveBtn, revert: revertBtn}
 }
 
 // ProjectPageEntry is the fourth page (after Types): root, inbox, own
