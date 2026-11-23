@@ -150,6 +150,9 @@ func FindAmount(text string) []Amount {
 			docCur, n = c, k
 		}
 	}
+	if docCur == "" { // no symbol next to a value: a code anywhere in the text
+		docCur = textCurrency(text)
+	}
 	var maxCents int64
 	for _, a := range all {
 		if a.Cents > maxCents {
@@ -166,7 +169,7 @@ func FindAmount(text string) []Amount {
 			a.Score += 0.1
 		}
 		if a.Cents == 0 {
-			a.Score -= 0.2
+			a.Score -= 0.5 // "Amount Due 0.00" of a paid invoice is not the amount
 		}
 		k := a.Currency + strconv.FormatInt(a.Cents, 10)
 		if j, ok := best[k]; ok {
@@ -191,6 +194,23 @@ func FindAmount(text string) []Amount {
 		return out[i].Cents > out[j].Cents
 	})
 	return out
+}
+
+var reCurCode = regexp.MustCompile(`\b(EUR|CHF|USD|GBP)\b`)
+
+// textCurrency returns the currency code named most often in text, or "".
+func textCurrency(text string) string {
+	freq := map[string]int{}
+	for _, m := range reCurCode.FindAllString(text, -1) {
+		freq[m]++
+	}
+	best, n := "", 0
+	for c, k := range freq {
+		if k > n || k == n && c < best {
+			best, n = c, k
+		}
+	}
+	return best
 }
 
 func maxInt(a, b int) int {

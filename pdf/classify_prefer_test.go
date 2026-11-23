@@ -17,7 +17,8 @@ func TestPreferOCR(t *testing.T) {
 		{"empty OCR never wins", good, "", false},
 		{"no layer: OCR wins", "", short, true},
 		{"good layer, tiny OCR (missed the small print)", good, short, false},
-		{"good layer, comparable OCR", good, good[:len(good)*4/5], true},
+		{"good layer, comparable OCR", good, good[:len(good)*4/5], false},
+		{"good layer, clearly longer OCR", good, good + good[:len(good)/3], true},
 		{"garbage layer, OCR of any decent size", garbage, good[:len(garbage)/2+1], true},
 		{"garbage layer, tiny OCR", garbage, short, false},
 	}
