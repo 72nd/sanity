@@ -46,3 +46,10 @@ go.work.sum
 # Design-history generator output (prj/icons/history/generators)
 __pycache__/
 _out/
+
+# Local scan samples and measurements (private, not committed)
+testdata/*.pdf
+testdata/src/
+testdata/sweep*
+testdata/text*
+testdata/analysis-output
