@@ -51,9 +51,7 @@ _out/
 # Local scan samples and measurements (private, not committed)
 testdata/*.pdf
 testdata/src/
-testdata/sweep*
-testdata/text*
-testdata/analysis-output
+testdata/measurements/
 
 # Task cache
 .task/
