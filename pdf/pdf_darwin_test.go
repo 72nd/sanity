@@ -170,3 +170,31 @@ func TestDates(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+// The page must fill the whole bitmap at every scale: CGPDFPageGetDrawingTransform
+// alone only scales down, which left a 72 dpi page centred in a white canvas.
+func TestRenderContentScalesWithScale(t *testing.T) {
+	e := NewEngine()
+	for _, f := range testPDFs(t) {
+		t.Run(filepath.Base(f), func(t *testing.T) {
+			base, err := e.Render(f, 0, 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cb := CropWhite(base).Bounds()
+			for _, s := range []float64{2, 4, 8} {
+				img, err := e.Render(f, 0, s)
+				if err != nil {
+					t.Fatal(err)
+				}
+				c := CropWhite(img).Bounds()
+				if got, want := float64(c.Dx()), float64(cb.Dx())*s; got < want*0.9 || got > want*1.1 {
+					t.Fatalf("scale %v: content %d px wide, want about %.0f (page not scaled up)", s, c.Dx(), want)
+				}
+				if got, want := float64(c.Min.X), float64(cb.Min.X)*s; got < want*0.9-4 || got > want*1.1+4 {
+					t.Fatalf("scale %v: content starts at x=%d, want about %.0f", s, c.Min.X, want)
+				}
+			}
+		})
+	}
+}

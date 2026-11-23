@@ -88,7 +88,12 @@ static CGContextRef renderPage(PDFDocument *d, int page, double scale, size_t *o
   if (!c) return NULL;
   CGContextSetRGBFillColor(c, 1, 1, 1, 1);
   CGContextFillRect(c, CGRectMake(0, 0, w, h));
-  CGAffineTransform t = CGPDFPageGetDrawingTransform(cp, kCGPDFCropBox, CGRectMake(0, 0, w, h), 0, true);
+  // GetDrawingTransform only scales down, never up: fit the page at 1:1 (it
+  // handles rotation and the crop box origin), then scale the context.
+  size_t w1 = (size_t)ceil(box.size.width), h1 = (size_t)ceil(box.size.height);
+  if (rot == 90 || rot == 270) { size_t t1 = w1; w1 = h1; h1 = t1; }
+  CGAffineTransform t = CGPDFPageGetDrawingTransform(cp, kCGPDFCropBox, CGRectMake(0, 0, w1, h1), 0, true);
+  CGContextScaleCTM(c, (CGFloat)w / (CGFloat)w1, (CGFloat)h / (CGFloat)h1);
   CGContextConcatCTM(c, t);
   CGContextDrawPDFPage(c, cp);
   *ow = w; *oh = h;
