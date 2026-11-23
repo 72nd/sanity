@@ -12,7 +12,6 @@ import (
 
 	"github.com/72nd/fine/shell"
 	"github.com/72nd/fine/shell/i18n"
-	"github.com/72nd/fine/widgets"
 	"github.com/72nd/sanity/inbox"
 	"github.com/72nd/sanity/locales"
 	"github.com/72nd/sanity/pdf"
@@ -120,7 +119,7 @@ func TestVimNormalModeMovesThroughQueue(t *testing.T) {
 	}
 }
 
-// The form card on the sort page stays inside the window and keeps a usable
+// The side panel on the sort page stays inside the window and keeps a usable
 // width at narrow and wide window widths.
 func TestSortFormCardInsideWindow(t *testing.T) {
 	for _, w := range []float32{900, 1100, 1200} {
@@ -129,22 +128,14 @@ func TestSortFormCardInsideWindow(t *testing.T) {
 		settle()
 		sh.Win.Resize(fyne.NewSize(w, 760))
 		settle()
-		var card *widgets.Card
-		walk(sh.Win.Content(), func(o fyne.CanvasObject) {
-			if c, ok := o.(*widgets.Card); ok {
-				card = c
-			}
-		})
-		if card == nil {
-			t.Fatalf("w=%v: form card not found", w)
-		}
-		left := fyne.CurrentApp().Driver().AbsolutePositionForObject(card).X
-		right := left + card.Size().Width
+		panel := lastAct.fields.panel.root
+		left := fyne.CurrentApp().Driver().AbsolutePositionForObject(panel).X
+		right := left + panel.Size().Width
 		if right > w {
-			t.Errorf("w=%v: form card right edge %v is outside the window", w, right)
+			t.Errorf("w=%v: side panel right edge %v is outside the window", w, right)
 		}
-		if card.Size().Width < 290 {
-			t.Errorf("w=%v: form card width %v < 290", w, card.Size().Width)
+		if panel.Size().Width < 290 {
+			t.Errorf("w=%v: side panel width %v < 290", w, panel.Size().Width)
 		}
 	}
 }

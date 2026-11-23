@@ -46,6 +46,8 @@ type sortWidgets struct {
 	// "invoice", "amount" or "text:<label>") by delta fields along the
 	// chain; it stops at both ends.
 	step func(from string, delta int)
+	// panel is the right-hand side (form, batch plan, actions).
+	panel *sortPanel
 }
 
 // SortPage builds the work screen: queue, PDF preview and the sort form.
@@ -63,27 +65,8 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	w.queue.Mode = grid.SelectMulti // Shift/Cmd-click or Cmd+A select a batch
 	w.queue.Key = func(it inbox.Item) string { return it.ID }
 	w.picker.PlaceHolder = i18n.T("sort.type.placeholder")
-	pathLabel := widgets.NewLabel("", widgets.LabelMuted)
-	putBackBtn := widgets.NewButton(i18n.T("sort.putback"), widgets.ButtonSecondary, func() { act.PutBack() })
-	adoptBtn := widgets.NewButton(i18n.T("sort.adopt"), widgets.ButtonSecondary, func() { act.AdoptInPlace() })
-	deleteBtn := widgets.NewButton(i18n.T("sort.delete"), widgets.ButtonDanger, func() { act.Remove() })
-	hint := widgets.NewLabel("", widgets.LabelMuted)
-	dupLabel := widgets.NewLabel("", widgets.LabelBody)
-	var dupEntry domain.LibraryEntry
-	dupBtn := widgets.NewButton(i18n.T("sort.duplicate.show"), widgets.ButtonSecondary, func() { act.ShowInLibrary(dupEntry) })
-	dupBar := widgets.VBox(dupLabel, widgets.HBox(dupBtn))
-	dupBar.Hide()
-
-	// Batch panel: shown instead of the single form while several documents
-	// are selected (sort_batch.go in the presenter does the planning).
-	batchTitle := widgets.NewLabel("", widgets.LabelBody)
-	batchTitle.Bold = true
-	batchHint := widgets.NewLabel(i18n.T("sort.batch.hint"), widgets.LabelMuted)
-	batchPicker := widgets.NewPicker(nil)
-	batchPicker.PlaceHolder = i18n.T("sort.type.placeholder")
-	batchPlan := widgets.VBox()
-	batchType := ""         // the type picked for the batch
-	var refreshBatch func() // set below; analysis results call it
+	var refreshBatch func() // the panel's; analysis results call it
+	var pnl *sortPanel
 
 	var syncing bool // true while code, not the user, fills the fields
 
@@ -134,38 +117,6 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	shownID := "" // the document whose preview is on screen
 
 	notify := func(st theme.Status, msg string) { sh.Toasts.Notify(st, msg, toastDur(4*time.Second)) }
-
-	refreshForm = func() {
-		if rel, ok := p.PathPreview(); ok {
-			pathLabel.Text, hint.Text = "→ "+rel, i18n.T("sort.hint.file")
-		} else {
-			pathLabel.Text, hint.Text = "", ""
-			if m := p.Missing(); len(m) > 0 {
-				hint.Text = i18n.T("sort.hint.missing", "Fields", joinComma(missingNames(m)))
-			}
-		}
-		if e, why, ok := p.Duplicate(); ok {
-			dupEntry = e
-			dupLabel.Text = i18n.T("sort.duplicate", "Path", e.Path, "Reason", p.DuplicateReasonText(why))
-			dupBar.Show()
-		} else {
-			dupBar.Hide()
-		}
-		// put back and adopt need an origin the document can return to
-		if p.CanPutBack() {
-			putBackBtn.Enable()
-		} else {
-			putBackBtn.Disable()
-		}
-		if p.CanAdoptInPlace() {
-			adoptBtn.Enable()
-		} else {
-			adoptBtn.Disable()
-		}
-		pathLabel.Refresh()
-		hint.Refresh()
-		dupLabel.Refresh()
-	}
 
 	setText := func(e *widgets.Entry, s string) {
 		if e.Text != s {
@@ -308,6 +259,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 					syncFields()
 				}
 				w.queue.SetItems(p.Items())
+				pnl.refreshHeader()
 				if p.BatchActive() {
 					refreshBatch() // the plan follows the arriving analysis
 				}
@@ -472,11 +424,11 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		}()
 	}
 	act.FileBatch = func() {
-		if !p.CanBatch(batchType) {
+		if !p.CanBatch(pnl.batchType) {
 			notify(theme.StatusWarning, i18n.T("sort.batch.incomplete"))
 			return
 		}
-		typeID := batchType
+		typeID := pnl.batchType
 		saveView()
 		go func() {
 			filed, failed := p.FileBatch(context.Background(), typeID)
@@ -703,94 +655,16 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		}()
 	}
 
-	fileBtn := widgets.NewButton(i18n.T("sort.file"), widgets.ButtonPrimary, func() { act.File() })
-	skipBtn := widgets.NewButton(i18n.T("sort.skip"), widgets.ButtonSecondary, func() { act.Skip() })
-	learnBtn := widgets.NewButton(i18n.T("sort.learn"), widgets.ButtonSecondary, func() { act.LearnRules() })
 	addBtn := widgets.NewButton(i18n.T("sort.add"), widgets.ButtonSecondary, func() { act.AddFiles() })
-
-	single := widgets.VBox(
-		dupBar,
-		widgets.NewFormRow(i18n.T("sort.type"), w.picker),
-		widgets.NewFormRow(i18n.T("sort.date"), w.date),
-		widgets.NewFormRow(i18n.T("sort.invoice"), w.invoice),
-		widgets.NewFormRow(i18n.T("sort.amount"), w.amount),
-		textBox,
-		pathLabel, hint,
-		widgets.HBox(fileBtn, skipBtn, learnBtn),
-		widgets.HBox(putBackBtn, adoptBtn, deleteBtn),
-	)
-	batchBtn := widgets.NewButton("", widgets.ButtonPrimary, func() { act.FileBatch() })
-	batchBox := widgets.VBox(batchTitle, batchHint,
-		widgets.NewFormRow(i18n.T("sort.type"), batchPicker), batchPlan, batchBtn)
-	batchBox.Hide()
-	refreshBatch = func() {
-		sel := p.Selection()
-		on := len(sel) > 1
-		if on {
-			choices := p.BatchTypeChoices()
-			valid, suggested := false, ""
-			items := make([]widgets.PickerItem, 0, len(choices))
-			for _, c := range choices {
-				it := widgets.PickerItem{ID: c.ID, Label: c.Name, Score: c.Score}
-				if c.Confident {
-					it.Badge, it.BadgeStatus = i18n.T("sort.badge.suggested"), theme.StatusSuccess
-					if suggested == "" {
-						suggested = c.ID
-					}
-				}
-				valid = valid || c.ID == batchType
-				items = append(items, it)
-			}
-			if !valid { // keep a still valid pick, else take the suggestion
-				batchType = suggested
-			}
-			batchPicker.SetItems(items)
-			batchPicker.Preselect(batchType)
-			n := strconv.Itoa(len(sel))
-			batchTitle.SetText(i18n.T("sort.batch.title", "Count", n))
-			batchBtn.SetLabel(i18n.T("sort.batch.file", "Count", n))
-			var rows []fyne.CanvasObject
-			for _, b := range p.BatchPlan(batchType) {
-				name := widgets.NewLabel(b.Name, widgets.LabelBody)
-				switch {
-				case batchType == "":
-					rows = append(rows, name)
-				case b.Blocked():
-					why := b.Err
-					if len(b.Missing) > 0 {
-						why = i18n.T("sort.batch.missing", "Fields", joinComma(missingNames(b.Missing)))
-					}
-					rows = append(rows, widgets.HBox(widgets.NewStatusBadge(theme.StatusWarning, i18n.T("sort.batch.blocked")), name),
-						widgets.NewLabel(why, widgets.LabelMuted))
-				default:
-					rows = append(rows, widgets.HBox(widgets.NewStatusBadge(theme.StatusSuccess, i18n.T("sort.batch.ready")), name),
-						widgets.NewLabel("→ "+b.Path, widgets.LabelMuted))
-				}
-			}
-			pl := batchPlan.(*fyne.Container)
-			pl.Objects = rows
-			pl.Refresh()
-			if p.CanBatch(batchType) {
-				batchBtn.Enable()
-			} else {
-				batchBtn.Disable()
-			}
-			single.Hide()
-			batchBox.Show()
-		} else {
-			batchBox.Hide()
-			single.Show()
-		}
-	}
-	batchPicker.OnChanged = func(id string) { batchType = id; refreshBatch() }
-	batchPicker.OnCommitted = batchPicker.OnChanged
+	pnl = newSortPanel(p, act, w, textBox)
+	w.panel = pnl
+	refreshForm, refreshBatch = pnl.refreshSingle, pnl.refreshBatch
 	w.queue.OnSelectionChanged = func() {
 		p.SetSelection(w.queue.SelectedKeys())
 		refreshBatch()
 	}
-	form := widgets.VBox(single, batchBox)
 	side := widgets.Border(nil, widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeTop, 6, addBtn), nil, nil, w.queue)
-	right := widgets.Scroll(widgets.PagePadded(widgets.NewCard(i18n.T("sort.form.title"), "", form)))
+	right := pnl.root
 
 	zoomBtn := func(icon fyne.ThemeIconName, fn func()) *widgets.Button {
 		b := widgets.NewButton("", widgets.ButtonToolbar, fn)
@@ -810,7 +684,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	main := widgets.HSplit(widgets.Border(zoomBar, nil, nil, nil, w.preview), right)
 	main.SetOffset(0.66)
 	main.SetMinLeading(280)  // preview
-	main.SetMinTrailing(320) // form card: never clipped, the preview shrinks first
+	main.SetMinTrailing(320) // side panel: never clipped, the preview shrinks first
 	root := widgets.HSplit(side, main)
 	root.SetOffset(0.17)
 	root.SetMinLeading(180) // queue
@@ -854,19 +728,11 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 				return
 			}
 			w.queue.SetItems(p.Items())
+			pnl.refreshHeader()
 			analyse()
 		})
 	})
 	return root
-}
-
-// missingNames shows a missing {text:<label>} placeholder as its label.
-func missingNames(m []string) []string {
-	out := make([]string, len(m))
-	for i, n := range m {
-		out[i] = strings.TrimPrefix(n, "text:")
-	}
-	return out
 }
 
 func joinComma(s []string) string {

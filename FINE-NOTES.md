@@ -2,6 +2,14 @@
 
 Gaps, bugs and surprises found while building sanity. Newest first.
 
+## 2026-11-23 (Sort side panel)
+
+- (Fixed in fine) `widgets.Picker`: after `SetItems` or a re-rank (typing, `Preselect`) some rows kept the width of an earlier layout (rows 3 to 5 were 148 px wide in a 294 px list), so labels were truncated. `pickerRenderer.Layout` now resizes every row to the box width (`fitRows`).
+- No vertical gap helper: the batch plan separates its groups with a `canvas.Rectangle` in the surface color sized by `SizePagePad`; a `widgets.Gap(token)` would be cleaner.
+- `widgets.Label` has no ellipsis truncation (`truncateText` is unexported), so the document name in the panel header wraps instead.
+- A wrapping Label cannot break a long path before its first character: a leading "→ " ended up alone on a line, so the target path is shown without the arrow.
+- Toasts overlay the bottom right of the window, i.e. the pinned footer actions of a right-hand panel; a toast host that avoids panels (or sits above the status bar) would help.
+
 ## 2026-11-22 (F1 ImageView, F2 DateEntry)
 
 - `ImageView.Zoom()` is relative to the fit scale (1.0 = fitted), steps x1.25, range 0.1 to 16.

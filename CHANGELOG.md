@@ -35,3 +35,4 @@
 - FIX: The welcome page lists the recent projects at start (the list was built before the preferences existed)
 - FIX: The Vim keys hint on the settings page wraps instead of running out of the window
 - STYLE: The project switcher sits at the left of the toolbar and opens a menu: projects with a folder icon (open one checked), then "Open project…" and "Overview" with their own icons below a separator
+- STYLE: Sort side panel rebuilt: header with document name and position, scrolling form (duplicate callout with icon, type, date, number and amount side by side), pinned footer with state (Missing/Ready, localized field names, target path) and actions; File is disabled until complete, the rest (learn rules, put back, adopt, delete) sits in a "more" menu; batch panel wraps and says why filing is blocked
