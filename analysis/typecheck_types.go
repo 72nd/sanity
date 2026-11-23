@@ -39,6 +39,11 @@ type SampleResult struct {
 	Score     float64
 	Confident bool
 	Others    []OtherScore // existing types with a score above 0, best first
+	// Date and Amount are what the analysis suggests for the sample with the
+	// new type's date and amount settings ("2006-01-02", "12.50 EUR"); empty
+	// when nothing was found. A statement type uses the statement date.
+	Date   string
+	Amount string
 }
 
 // LibraryHit is a filed document whose cached text now also scores the new
@@ -85,4 +90,7 @@ type CheckInput struct {
 	// IgnoreTokens are the project's own identifiers; a rule value that
 	// contains one is a warning (the learning ignores them, the rule would not).
 	IgnoreTokens []string
+	// StatementKeywords are the project-wide statement keywords (see
+	// Doc.StatementKeywords); the dry run classifies the samples with them.
+	StatementKeywords []string
 }

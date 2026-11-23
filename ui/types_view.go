@@ -140,6 +140,13 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 	}, rules)
 	relayout := func() {} // set once the page scroll exists; the grid height changes with the rule count
 
+	statement := widgets.NewSwitch(i18n.T("types.statement"), nil)
+	statementHint := widgets.NewLabel(i18n.T("types.statement.hint"), widgets.LabelSmall)
+
+	// --- amount ---
+	amountLabels := widgets.NewEntry()
+	currency := widgets.NewSelect(choiceLabels(p.CurrencyChoices()), nil)
+
 	// --- date ---
 	preferred := widgets.NewEntry()
 	ignored := widgets.NewEntry()
@@ -220,6 +227,9 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 			rules.SetItems(p.Rules())
 			rulesBox.Refresh()
 			relayout()
+			statement.SetOn(cur.IsStatement)
+			setText(amountLabels, presenter.JoinList(cur.Amount.PreferredLabels))
+			currency.SetSelected(presenter.LabelOf(p.CurrencyChoices(), cur.Currency))
 			setText(preferred, presenter.JoinList(cur.Date.PreferredLabels))
 			setText(ignored, presenter.JoinList(cur.Date.IgnoreLabels))
 			source.SetSelected(presenter.LabelOf(p.SourceChoices(), cur.Date.Source))
@@ -256,6 +266,26 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 	learned.OnChanged = func(on bool) {
 		if !syncing {
 			p.SetUseLearned(on)
+			refreshState()
+		}
+	}
+	statement.OnChanged = func(on bool) {
+		if !syncing {
+			p.SetStatement(on)
+			refreshState()
+		}
+	}
+	amountLabels.OnChanged = func(s string) {
+		if !syncing {
+			p.SetAmountLabels(s)
+			refreshState()
+		}
+	}
+	currency.OnChanged = func(s string) {
+		if !syncing {
+			if err := p.SetCurrency(s); err != nil {
+				notify(theme.StatusDanger, err.Error())
+			}
 			refreshState()
 		}
 	}
@@ -462,6 +492,8 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 	recognition := widgets.NewCard(i18n.T("types.card.recognition"), i18n.T("types.card.recognition.desc"), widgets.VBox(
 		widgets.NewFormRow(i18n.T("types.threshold"), threshold),
 		learned,
+		statement,
+		statementHint,
 		rulesBox,
 		widgets.HBox(addRule, removeRule),
 	))
@@ -472,7 +504,11 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 			widgets.NewFormRow(i18n.T("types.date.source"), source),
 			widgets.NewFormRow(i18n.T("types.date.maxage"), maxAge)),
 	))
-	body := widgets.Scroll(widgets.PagePadded(widgets.VBox(basics, recognition, dateCard)))
+	amountCard := widgets.NewCard(i18n.T("types.card.amount"), i18n.T("types.card.amount.desc"), widgets.VBox(
+		widgets.NewFormRow(i18n.T("types.amount.preferred"), amountLabels),
+		widgets.NewFormRow(i18n.T("types.amount.currency"), currency),
+	))
+	body := widgets.Scroll(widgets.PagePadded(widgets.VBox(basics, recognition, dateCard, amountCard)))
 	relayout = body.Refresh
 	bar := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, 6,
 		widgets.HBox(state, widgets.Spacer(), jsonBtn, revertBtn, saveBtn))

@@ -26,6 +26,9 @@ DocumentType:
 | `threshold` | optional, default 0.8 |
 | `useLearned` | optional, default true |
 | `date` | `{"preferredLabels": [...], "ignoreLabels": [...], "source": <source>, "maxAgeYears": <int>}` |
+| `amount` | optional, `{"preferredLabels": [...]}`: words next to the wanted amount, for example `["Betrag"]`; a value after one of them beats a larger total elsewhere. Leave it out when the total is the wanted amount. |
+| `currency` | optional ISO code (`EUR`, `CHF`, `USD`, `GBP`) for amounts without a currency sign, for example a Swiss statement that prints `90.00` only |
+| `statement` | optional, default false. `true` for a bank or card statement (Kontoauszug): the date is then the latest date of the month the document names most often, and a document containing a project statement keyword is classified as statement types only, so no `not` rule against "Kontoauszug" is needed on the other types |
 
 Rule: `{"kind": <kind>, "value": "<text>", "mode": <mode>, "weight": <0..1>, "where": <where>, "enabled": true}`
 
@@ -78,7 +81,9 @@ Sample: a hosting invoice from Hetzner with the VAT ID printed in the footer, th
     ],
     "threshold": 0.8,
     "useLearned": true,
-    "date": {"preferredLabels": ["Rechnungsdatum"], "ignoreLabels": ["Fälligkeitsdatum"], "source": "auto", "maxAgeYears": 2}
+    "date": {"preferredLabels": ["Rechnungsdatum"], "ignoreLabels": ["Fälligkeitsdatum"], "source": "auto", "maxAgeYears": 2},
+    "amount": {"preferredLabels": ["Gesamtbetrag"]},
+    "currency": "EUR"
   },
   "notes": [
     {"rule": 0, "why": "Sender domain in the letterhead"},

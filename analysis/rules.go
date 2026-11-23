@@ -25,6 +25,9 @@ type Doc struct {
 	FileName string   // base name, may be empty
 	Header   []string // optional; derived from Text (first 15 non-empty lines) when nil
 	Footer   []string // optional; derived from Text (last 5 non-empty lines) when nil
+	// StatementKeywords are the project-wide words that mark a statement
+	// (see Classify); empty switches the statement adjustment off.
+	StatementKeywords []string
 }
 
 // scopes holds the lower-cased texts a rule can look at.

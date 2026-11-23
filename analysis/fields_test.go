@@ -3,6 +3,8 @@ package analysis
 import (
 	"strings"
 	"testing"
+
+	"github.com/72nd/sanity/domain"
 )
 
 func TestFindInvoice(t *testing.T) {
@@ -151,5 +153,41 @@ func TestFindAmountPunctuationAndGrouping(t *testing.T) {
 	// a plain space is no grouping mark: quantity next to a price
 	if got := FindAmount("Menge 3 100,00 EUR"); len(got) == 0 || got[0].Cents != 10000 {
 		t.Errorf("space must not group: %+v", got)
+	}
+}
+
+func TestFindAmountPreferredLabel(t *testing.T) {
+	text := "Rechnung\nPosition Hardware 120,00 EUR\nBetrag 8,00 EUR\nGesamt 128,00 EUR\n"
+	if got := FindAmount(text); len(got) == 0 || got[0].Cents != 12800 {
+		t.Fatalf("without labels the total wins, got %+v", got)
+	}
+	got := FindAmountFor(text, domain.AmountConfig{PreferredLabels: []string{"betrag"}}, "")
+	if len(got) == 0 || got[0].Cents != 800 {
+		t.Fatalf("with the label Betrag the labelled value must win, got %+v", got)
+	}
+	// empty and unknown labels change nothing
+	got = FindAmountFor(text, domain.AmountConfig{PreferredLabels: []string{"", "Nirgends"}}, "")
+	if len(got) == 0 || got[0].Cents != 12800 {
+		t.Fatalf("unmatched labels must not change the result, got %+v", got)
+	}
+}
+
+func TestFindAmountTypeCurrency(t *testing.T) {
+	text := "Raiffeisen Bank\nKontoauszug\nSaldo 90.00\nZahlung 12.50\n"
+	got := FindAmountFor(text, domain.AmountConfig{}, "CHF")
+	if len(got) == 0 {
+		t.Fatal("no amount")
+	}
+	for _, a := range got {
+		if a.Currency != "CHF" {
+			t.Errorf("want CHF, got %+v", a)
+		}
+	}
+	if got := FindAmountFor(text, domain.AmountConfig{}, ""); got[0].Currency != "" {
+		t.Errorf("no type currency: %+v", got[0])
+	}
+	// a symbol in the document still wins over the type default
+	if got := FindAmountFor("Total 10.00 EUR\nFoo 90.00", domain.AmountConfig{}, "CHF"); got[0].Currency != "EUR" {
+		t.Errorf("symbol must win: %+v", got)
 	}
 }

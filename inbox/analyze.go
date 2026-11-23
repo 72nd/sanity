@@ -25,11 +25,14 @@ type Result struct {
 	Scan        bool // at least one page came from OCR or was classified as a scan
 	Suggestions []analysis.Suggestion
 	Dates       []analysis.DateCandidate
-	Invoices    []analysis.Found
-	Amounts     []analysis.Amount
-	Duplicate   *domain.LibraryEntry
-	DupReason   string
-	Err         error
+	// StatementDate is the date analysis.StatementDate picks, whatever the
+	// type; the top suggestion is already in Dates when it is a statement type.
+	StatementDate *analysis.DateCandidate
+	Invoices      []analysis.Found
+	Amounts       []analysis.Amount
+	Duplicate     *domain.LibraryEntry
+	DupReason     string
+	Err           error
 }
 
 // Analyzer runs the recognition pipeline of PLAN.md section 3 on a PDF.
@@ -70,16 +73,23 @@ func (a *Analyzer) Analyze(ctx context.Context, path string) Result {
 		return r
 	}
 	name := filepath.Base(path)
-	doc := analysis.Doc{Text: text, FileName: name}
+	// Labels and values emitted as separate blocks are paired in a block
+	// appended to the text; r.Text and the classification keep the original.
+	fields := analysis.PairColumns(text)
+	doc := analysis.Doc{Text: text, FileName: name, StatementKeywords: pr.StatementWords()}
 	r.Suggestions = analysis.Classify(doc, pr.Types, a.Learned)
 
-	var cfg domain.DateConfig
+	var typ domain.DocumentType
 	if len(r.Suggestions) > 0 {
-		if t, ok := pr.TypeByID(r.Suggestions[0].TypeID); ok {
-			cfg = t.Date
+		typ, _ = pr.TypeByID(r.Suggestions[0].TypeID)
+	}
+	r.Dates = analysis.FindDates(fields, now(), r.Lang, typ.Date)
+	if sd, ok := analysis.StatementDate(r.Dates); ok {
+		r.StatementDate = &sd
+		if typ.IsStatement {
+			r.Dates = promoteDate(r.Dates, sd)
 		}
 	}
-	r.Dates = analysis.FindDates(text, now(), r.Lang, cfg)
 	var mtime time.Time
 	if st, err := os.Stat(path); err == nil {
 		mtime = st.ModTime()
@@ -87,8 +97,8 @@ func (a *Analyzer) Analyze(ctx context.Context, path string) Result {
 	if fb := analysis.FallbackDate(meta.Created, name, mtime); !fb.Date.IsZero() {
 		r.Dates = append(r.Dates, fb)
 	}
-	r.Invoices = analysis.FindInvoice(text, "")
-	r.Amounts = analysis.FindAmount(text)
+	r.Invoices = analysis.FindInvoice(fields, "")
+	r.Amounts = analysis.FindAmountFor(fields, typ.Amount, typ.Currency)
 
 	typeID, invoice := "", ""
 	if len(r.Suggestions) > 0 {
@@ -101,4 +111,17 @@ func (a *Analyzer) Analyze(ctx context.Context, path string) Result {
 		r.Duplicate, r.DupReason = &e, why
 	}
 	return r
+}
+
+// promoteDate puts the statement date first and drops the other candidate of
+// the same day, so DateChoices keeps showing the remaining alternatives.
+func promoteDate(dates []analysis.DateCandidate, sd analysis.DateCandidate) []analysis.DateCandidate {
+	out := make([]analysis.DateCandidate, 0, len(dates)+1)
+	out = append(out, sd)
+	for _, d := range dates {
+		if !d.Date.Equal(sd.Date) {
+			out = append(out, d)
+		}
+	}
+	return out
 }

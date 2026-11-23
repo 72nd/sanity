@@ -103,6 +103,14 @@ func (j *JSON) SaveProject(ctx context.Context, name, inbox string, ignore []str
 	})
 }
 
+// SaveStatementKeywords implements Store.
+func (j *JSON) SaveStatementKeywords(ctx context.Context, words []string) error {
+	return j.mutate(func(m *memory) error {
+		m.saveStatementKeywords(words)
+		return nil
+	})
+}
+
 // DeleteType implements Store.
 func (j *JSON) DeleteType(ctx context.Context, id string) error {
 	return j.mutate(func(m *memory) error {

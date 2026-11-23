@@ -51,6 +51,8 @@ type DryRunRow struct {
 	Score     string // "0.85"
 	Confident bool
 	Others    string // "Name 0.42, Name 0.10", empty when none
+	Date      string // suggested date with the new type, empty when none
+	Amount    string // suggested amount with the new type, empty when none
 }
 
 // LibraryHitRow is a filed document that now also scores the new type.
@@ -150,6 +152,7 @@ func (p *Types) Check(ctx context.Context) error {
 	in := analysis.CheckInput{
 		Type: cloneDocType(p.imp.typ), Existing: slices.Clone(pr.Types), Samples: slices.Clone(p.imp.samples),
 		Learned: p.Import.Learned, Library: lib, IgnoreTokens: slices.Clone(pr.IgnoreTokens),
+		StatementKeywords: pr.StatementWords(),
 	}
 	if p.Import.LibraryText != nil {
 		in.Text = p.Import.LibraryText(pr.Root)
@@ -216,7 +219,7 @@ func (p *Types) DryRun() []DryRunRow {
 		for _, o := range s.Others {
 			others = append(others, p.typeName(o.TypeID)+" "+score(o.Score))
 		}
-		rows[i] = DryRunRow{Sample: s.Name, Score: score(s.Score), Confident: s.Confident, Others: strings.Join(others, ", ")}
+		rows[i] = DryRunRow{Sample: s.Name, Score: score(s.Score), Confident: s.Confident, Others: strings.Join(others, ", "), Date: s.Date, Amount: s.Amount}
 	}
 	return rows
 }

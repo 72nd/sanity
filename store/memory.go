@@ -18,6 +18,7 @@ type memory struct {
 func (m *memory) snapshot() domain.Project {
 	p := m.p
 	p.IgnoreTokens = slices.Clone(p.IgnoreTokens)
+	p.StatementKeywords = slices.Clone(p.StatementKeywords)
 	p.Types = cloneTypes(m.p.Types)
 	p.Library = cloneLibrary(m.p.Library)
 	return p
@@ -32,6 +33,13 @@ func (m *memory) saveProject(name, inbox string, ignore []string) {
 	m.p.IgnoreTokens = slices.Clone(ignore)
 	if m.p.IgnoreTokens == nil {
 		m.p.IgnoreTokens = []string{}
+	}
+}
+
+func (m *memory) saveStatementKeywords(words []string) {
+	m.p.StatementKeywords = slices.Clone(words)
+	if m.p.StatementKeywords == nil {
+		m.p.StatementKeywords = []string{}
 	}
 }
 
@@ -88,6 +96,7 @@ func cloneType(t domain.DocumentType) domain.DocumentType {
 	t.Rules = slices.Clone(t.Rules)
 	t.Date.PreferredLabels = slices.Clone(t.Date.PreferredLabels)
 	t.Date.IgnoreLabels = slices.Clone(t.Date.IgnoreLabels)
+	t.Amount.PreferredLabels = slices.Clone(t.Amount.PreferredLabels)
 	return t
 }
 

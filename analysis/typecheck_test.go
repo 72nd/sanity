@@ -177,3 +177,18 @@ func TestEnumsDocumented(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckTypeCurrencyAndSampleFields(t *testing.T) {
+	ty := goodType()
+	ty.Currency = "XYZ"
+	if f, ok := find(CheckType(CheckInput{Type: ty}), "currency.unknown"); !ok || f.Level != LevelError {
+		t.Fatal("unknown currency accepted")
+	}
+	ty.Currency = "CHF"
+	ty.IsStatement = true
+	text := "Hetzner Online GmbH\nhetzner.com\nKontoauszug\n30.04.2025 Zahlung 90.00\n15.04.2025 Zahlung 12.50\n31.10.2025\n"
+	r := CheckType(CheckInput{Type: ty, Samples: []Sample{{Name: "s.pdf", Text: text}}})
+	if len(r.Samples) != 1 || r.Samples[0].Date != "2025-04-30" || r.Samples[0].Amount == "" || !strings.HasSuffix(r.Samples[0].Amount, "CHF") {
+		t.Errorf("sample result %+v", r.Samples)
+	}
+}

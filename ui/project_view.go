@@ -95,6 +95,7 @@ func ShowSwitchDialog(sh *shell.Shell, nav *ProjectNav) {
 // projectWidgets are the fields of the project page, for tests.
 type projectWidgets struct {
 	name, inbox, ignore *widgets.Entry
+	statement           *widgets.Entry
 	nameRow, inboxRow   *widgets.FormRow
 	ignoreRow           *widgets.FormRow
 	save, revert        *widgets.Button
@@ -156,6 +157,10 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 	ignore.SetMinRowsVisible(5)
 	ignoreRow := widgets.NewFormRow(i18n.T("project.ignore"), ignore)
 	hint := widgets.NewLabel(i18n.T("project.ignore.hint"), widgets.LabelSmall)
+	statement := widgets.NewTextArea()
+	statement.SetMinRowsVisible(3)
+	statementRow := widgets.NewFormRow(i18n.T("project.statement"), statement)
+	statementHint := widgets.NewLabel(i18n.T("project.statement.hint"), widgets.LabelSmall)
 
 	state := widgets.NewLabel("", widgets.LabelMuted)
 	saveBtn := widgets.NewButton(i18n.T("project.save"), widgets.ButtonPrimary, nil)
@@ -183,6 +188,7 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 		name.SetText(p.Name())
 		inboxEntry.SetText(p.Inbox())
 		ignore.SetText(p.IgnoreText())
+		statement.SetText(p.StatementText())
 		rootLabel.SetText(p.Root())
 		syncing = false
 		refresh()
@@ -198,6 +204,7 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 	name.OnChanged = edited(p.SetName)
 	inboxEntry.OnChanged = edited(p.SetInbox)
 	ignore.OnChanged = edited(p.SetIgnoreText)
+	statement.OnChanged = edited(p.SetStatementText)
 
 	chooseBtn.OnTapped = func() {
 		widgets.ShowFolderOpen(sh.Win, widgets.FolderDialogOptions{StartDir: p.Root()}, func(dir string) {
@@ -262,9 +269,10 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 
 	basics := widgets.NewCard(i18n.T("project.card.basics"), "", stack(fieldGap, nameRow, rootRow, inboxRow))
 	idents := widgets.NewCard(i18n.T("project.card.ignore"), i18n.T("project.card.ignore.desc"), stack(6, ignoreRow, hint))
+	statements := widgets.NewCard(i18n.T("project.card.statement"), i18n.T("project.card.statement.desc"), stack(6, statementRow, statementHint))
 	recent := stack(fieldGap, widgets.NewLabel(i18n.T("project.card.recent"), widgets.LabelHeading), recentBox, widgets.HBox(openOther))
 	body := widgets.Scroll(widgets.PagePadded(widgets.MaxWidth(720,
-		stack(cardGap, basics, idents, gap(sectionGap-cardGap), recent))))
+		stack(cardGap, basics, idents, statements, gap(sectionGap-cardGap), recent))))
 	bar := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, 6,
 		widgets.HBox(state, widgets.Spacer(), revertBtn, saveBtn))
 	page := widgets.Border(bar, nil, nil, nil, body)
@@ -282,7 +290,7 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 			fillRecents()
 		})
 	})
-	return page, &projectWidgets{name: name, inbox: inboxEntry, ignore: ignore, nameRow: nameRow, inboxRow: inboxRow,
+	return page, &projectWidgets{name: name, inbox: inboxEntry, ignore: ignore, statement: statement, nameRow: nameRow, inboxRow: inboxRow,
 		ignoreRow: ignoreRow, save: saveBtn, revert: revertBtn, recentBox: recentBox}
 }
 

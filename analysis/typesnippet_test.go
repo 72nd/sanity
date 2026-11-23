@@ -89,3 +89,25 @@ func TestTypeJSONRoundTrip(t *testing.T) {
 		t.Fatalf("%+v", back)
 	}
 }
+
+func TestSnippetNewFieldsRoundTrip(t *testing.T) {
+	ty, _, err := ParseSnippet([]byte(`{"id":"k","name":"K","pathTemplate":"a/{date:2006}.pdf","rules":[],
+"statement":true,"currency":" chf ","amount":{"preferredLabels":["Betrag","Total"]}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ty.IsStatement || ty.Currency != "CHF" || strings.Join(ty.Amount.PreferredLabels, "|") != "Betrag|Total" {
+		t.Fatalf("%+v", ty)
+	}
+	data, err := TypeJSON(ty)
+	if err != nil {
+		t.Fatal(err)
+	}
+	back, _, err := ParseSnippet(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !back.IsStatement || back.Currency != "CHF" || strings.Join(back.Amount.PreferredLabels, "|") != "Betrag|Total" {
+		t.Errorf("round trip lost fields: %s", data)
+	}
+}

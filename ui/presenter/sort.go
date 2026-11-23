@@ -140,7 +140,25 @@ func (p *Sort) ImportPaths(paths ...string) (opened bool, err error) {
 func (p *Sort) Form() Form { return p.form }
 
 // SetType selects the type by id.
-func (p *Sort) SetType(id string) { p.form.TypeID = id }
+//
+// Choosing a statement type replaces a date that is empty or still the
+// automatic suggestion by the statement date of the analysis (the latest date
+// of the month named most often).
+func (p *Sort) SetType(id string) {
+	p.form.TypeID = id
+	t, ok := p.typeByID(id)
+	if !ok || !t.IsStatement {
+		return
+	}
+	r, have := p.result(p.current)
+	if !have || r.StatementDate == nil {
+		return
+	}
+	if p.form.Date.IsZero() || p.form.Date.Equal(p.suggestedDate) {
+		p.form.Date = r.StatementDate.Date
+		p.suggestedDate = p.form.Date
+	}
+}
 
 // SetDate sets the document date.
 func (p *Sort) SetDate(d time.Time) { p.form.Date = d }

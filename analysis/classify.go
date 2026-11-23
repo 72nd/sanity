@@ -1,7 +1,9 @@
 package analysis
 
 import (
+	"slices"
 	"sort"
+	"strings"
 
 	"github.com/72nd/sanity/domain"
 )
@@ -11,7 +13,30 @@ const (
 	minLead          = 0.15
 	minFiledForFull  = 3
 	learnedCap       = 0.7
+
+	// statementSuppress multiplies the score of a type without
+	// DocumentType.IsStatement when the document contains a statement keyword.
+	// A statement lists payments to many companies, so the name of one of them
+	// must not decide the type; 0.2 keeps even a 0.9 rule below every threshold.
+	statementSuppress = 0.2
+	// statementBoost is combined (noisy OR) with the score of a statement type
+	// that already has some evidence when the document contains a keyword. A
+	// type without any evidence is not suggested because of it.
+	statementBoost = 0.4
 )
+
+// HasStatementKeyword reports whether the text contains one of the keywords,
+// case-insensitively and on the normalized text.
+func HasStatementKeyword(text string, keywords []string) bool {
+	plain := strings.ToLower(normForClassify(text))
+	for _, k := range keywords {
+		k = strings.ToLower(strings.TrimSpace(normForClassify(k)))
+		if k != "" && strings.Contains(plain, k) {
+			return true
+		}
+	}
+	return false
+}
 
 // LearnedIndex provides the learned score per type.
 type LearnedIndex interface {
@@ -71,6 +96,10 @@ func Classify(doc Doc, types []domain.DocumentType, learned LearnedIndex) []Sugg
 	if learned != nil {
 		lscores = learned.Score(doc.Text)
 	}
+	// The statement adjustment applies only when a type carries the flag, so a
+	// project without statement types classifies as before.
+	statement := slices.ContainsFunc(types, func(t domain.DocumentType) bool { return t.IsStatement }) &&
+		HasStatementKeyword(doc.Text, doc.StatementKeywords)
 	var out []Suggestion
 	for _, t := range types {
 		rr := evalScopes(t.Rules, sc)
@@ -85,6 +114,12 @@ func Classify(doc Doc, types []domain.DocumentType, learned LearnedIndex) []Sugg
 			}
 		}
 		s := noisyOR(rr.Score, ls)
+		switch {
+		case statement && !t.IsStatement:
+			s *= statementSuppress
+		case statement && s > 0:
+			s = noisyOR(s, statementBoost)
+		}
 		if s <= 0 {
 			continue
 		}

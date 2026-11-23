@@ -24,6 +24,9 @@ type Store interface {
 	// SaveProject replaces the project name, the inbox folder (relative to the
 	// root) and the own identifiers the learning ignores.
 	SaveProject(ctx context.Context, name, inbox string, ignore []string) error
+	// SaveStatementKeywords replaces the project-wide statement keywords. An
+	// empty list is stored as empty and switches the keyword rule off.
+	SaveStatementKeywords(ctx context.Context, words []string) error
 	// AddEntry appends a library entry.
 	AddEntry(ctx context.Context, e domain.LibraryEntry) error
 	// RemoveEntry removes a library entry by id.

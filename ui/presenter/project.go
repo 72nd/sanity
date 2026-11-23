@@ -40,6 +40,7 @@ type Project struct {
 
 type projectForm struct {
 	Name, Inbox, Ignore string // Ignore is one token per line
+	Statement           string // statement keywords, one per line
 }
 
 // NewProject creates the presenter.
@@ -56,7 +57,8 @@ func (p *Project) Load(ctx context.Context) error {
 	if inbox == "" {
 		inbox = domain.DefaultInbox
 	}
-	p.draft = projectForm{Name: pr.Name, Inbox: inbox, Ignore: strings.Join(pr.IgnoreTokens, "\n")}
+	p.draft = projectForm{Name: pr.Name, Inbox: inbox, Ignore: strings.Join(pr.IgnoreTokens, "\n"),
+		Statement: strings.Join(pr.StatementWords(), "\n")}
 	p.saved = p.draft
 	p.loaded = true
 	return nil
@@ -69,6 +71,21 @@ func (p *Project) Root() string { return p.root }
 func (p *Project) Name() string       { return p.draft.Name }
 func (p *Project) Inbox() string      { return p.draft.Inbox }
 func (p *Project) IgnoreText() string { return p.draft.Ignore }
+
+// StatementText is the draft of the statement keywords, one per line.
+func (p *Project) StatementText() string { return p.draft.Statement }
+
+// SetStatementText changes the statement keywords; commas and line breaks
+// separate them.
+func (p *Project) SetStatementText(s string) { p.draft.Statement = s }
+
+// Keywords returns the statement keywords of the draft: trimmed, without
+// empty entries and duplicates, in order.
+func (p *Project) Keywords() []string { return splitKeywords(p.draft.Statement) }
+
+func splitKeywords(text string) []string {
+	return splitTokens(strings.ReplaceAll(text, ",", "\n"))
+}
 
 // InboxPath is the absolute inbox folder of the draft.
 func (p *Project) InboxPath() string { return filepath.Join(p.root, filepath.FromSlash(p.draft.Inbox)) }
@@ -139,6 +156,7 @@ func (p *Project) normalized(f projectForm) projectForm {
 	f.Name = strings.TrimSpace(f.Name)
 	f.Inbox = strings.TrimSpace(f.Inbox)
 	f.Ignore = strings.Join(splitTokens(f.Ignore), "\n")
+	f.Statement = strings.Join(splitKeywords(f.Statement), "\n")
 	return f
 }
 
@@ -168,6 +186,9 @@ func (p *Project) Save(ctx context.Context) (inboxChanged bool, err error) {
 	}
 	f.Inbox = filepath.ToSlash(filepath.Clean(filepath.FromSlash(f.Inbox)))
 	if err := p.store.SaveProject(ctx, f.Name, f.Inbox, splitTokens(f.Ignore)); err != nil {
+		return false, err
+	}
+	if err := p.store.SaveStatementKeywords(ctx, splitKeywords(f.Statement)); err != nil {
 		return false, err
 	}
 	inboxChanged = f.Inbox != p.normalized(p.saved).Inbox

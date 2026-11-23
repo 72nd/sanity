@@ -123,6 +123,15 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 			e.SetText(s)
 		}
 	}
+	// syncDate pushes the form date into the date widget; call it with syncing set.
+	syncDate := func() {
+		if f := p.Form(); f.Date.IsZero() {
+			w.date.SetDate(nil)
+		} else {
+			d := f.Date
+			w.date.SetDate(&d)
+		}
+	}
 	// syncFields pushes the presenter's form (including analysis prefill) into
 	// the widgets without triggering their callbacks.
 	syncFields := func() {
@@ -147,12 +156,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 			cands = append(cands, widgets.DateCandidate{Date: d.Date, Label: label})
 		}
 		w.date.SetCandidates(cands)
-		if f.Date.IsZero() {
-			w.date.SetDate(nil)
-		} else {
-			d := f.Date
-			w.date.SetDate(&d)
-		}
+		syncDate()
 		setText(w.invoice, f.Invoice)
 		setText(w.amount, f.Amount)
 		syncTexts()
@@ -354,6 +358,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		if !syncing {
 			p.SetType(id)
 			syncing = true
+			syncDate()
 			syncTexts()
 			syncing = false
 			refreshForm()
@@ -362,6 +367,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	w.picker.OnCommitted = func(id string) {
 		p.SetType(id)
 		syncing = true
+		syncDate()
 		syncTexts()
 		syncing = false
 		refreshForm()

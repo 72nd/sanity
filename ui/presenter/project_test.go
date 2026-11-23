@@ -109,3 +109,25 @@ func TestProjectSetInboxFolder(t *testing.T) {
 		t.Error("failed pick changed the inbox")
 	}
 }
+
+func TestProjectStatementKeywords(t *testing.T) {
+	p, st := loadedProject(t)
+	ctx := context.Background()
+	if !strings.Contains(p.StatementText(), "Kontoauszug") {
+		t.Errorf("defaults missing: %q", p.StatementText())
+	}
+	p.SetStatementText("Kontoauszug, Extrait\n extrait \nRelevé")
+	if !p.Dirty() {
+		t.Error("not dirty")
+	}
+	if _, err := p.Save(ctx); err != nil {
+		t.Fatal(err)
+	}
+	pr, _ := st.Project(ctx)
+	if !reflect.DeepEqual(pr.StatementKeywords, []string{"Kontoauszug", "Extrait", "extrait", "Relevé"}) {
+		t.Errorf("stored %v", pr.StatementKeywords)
+	}
+	if p.Dirty() {
+		t.Error("dirty after save")
+	}
+}

@@ -317,3 +317,30 @@ func TestLearnRulesFromDocument(t *testing.T) {
 		}
 	}
 }
+
+func TestSetStatementTypeFillsStatementDate(t *testing.T) {
+	p, _ := newSort(t, 1)
+	p.pdf = pdf.NewFake("Unbekannte Bank\nBuchungen\n30.04.2025 Zahlung\n30.04.2025 Valuta\n15.04.2025 Zahlung\n31.10.2025 Druck")
+	p.SetAnalyzer(&inbox.Analyzer{PDF: p.pdf, Store: p.store, Now: func() time.Time { return time.Date(2025, 11, 22, 0, 0, 0, 0, time.UTC) }})
+	p.Step(0)
+	done := make(chan string, 1)
+	p.Analyse(context.Background(), func(id string) { done <- id })
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("analysis did not finish")
+	}
+	p.SetType("telekom-invoice")
+	if !p.Form().Date.IsZero() {
+		t.Fatalf("a non-statement type must not set the date: %v", p.Form().Date)
+	}
+	p.SetType("kontist-statement")
+	if want := time.Date(2025, 4, 30, 0, 0, 0, 0, time.UTC); !p.Form().Date.Equal(want) {
+		t.Errorf("date %v, want %v", p.Form().Date, want)
+	}
+	p.SetDate(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC))
+	p.SetType("kontist-statement")
+	if p.Form().Date.Month() != 1 {
+		t.Error("a date the user entered must stay")
+	}
+}

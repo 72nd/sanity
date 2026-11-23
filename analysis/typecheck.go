@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/72nd/sanity/domain"
 )
@@ -18,6 +19,8 @@ var (
 	RuleModes   = []string{modeShould, modeMust, modeNot}
 	RuleWheres  = []string{"any", "header", "footer", "filename"}
 	DateSources = []string{"auto", "text", "filename", "metadata"}
+	// Currencies are the ISO codes a type's default currency may have.
+	Currencies = []string{"EUR", "CHF", "USD", "GBP"}
 )
 
 // Weight words of the snippet format and the numbers they stand for.
@@ -47,6 +50,7 @@ var redactionMarks = []string{"redacted", "xxxx", "***", "▇", "█", "[removed
 //	template.ok           ok       -1                       path template is valid
 //	threshold.range       error    -1       threshold       threshold outside 0..1
 //	date.source           error    -1       source          unknown date.source
+//	currency.unknown      error    -1       currency        currency is not EUR, CHF, USD or GBP
 //	rules.none            error    -1                       no enabled rule
 //	rules.weak            warning  -1                       all enabled rules have weight <= 0.2
 //	rule.kind             error    rule     kind            unknown kind
@@ -116,6 +120,9 @@ func CheckType(in CheckInput) Report {
 	n = len(r.Findings)
 	if t.Date.Source != "" && !slices.Contains(DateSources, t.Date.Source) {
 		add(LevelError, "date.source", "unknown date source (known: "+strings.Join(DateSources, ", ")+")", -1, t.Date.Source)
+	}
+	if t.Currency != "" && !slices.Contains(Currencies, t.Currency) {
+		add(LevelError, "currency.unknown", "unknown currency (known: "+strings.Join(Currencies, ", ")+")", -1, t.Currency)
 	}
 	for i, ru := range t.Rules {
 		if !slices.Contains(RuleKinds, ru.Kind) {
@@ -204,7 +211,7 @@ func (r *Report) dryRun(in CheckInput) {
 
 	for _, s := range in.Samples {
 		res := SampleResult{Name: s.Name}
-		sugg := Classify(Doc{Text: s.Text, FileName: s.FileName}, types, in.Learned)
+		sugg := Classify(Doc{Text: s.Text, FileName: s.FileName, StatementKeywords: in.StatementKeywords}, types, in.Learned)
 		best := 0.0
 		for _, g := range sugg {
 			if g.TypeID == t.ID {
@@ -214,6 +221,7 @@ func (r *Report) dryRun(in CheckInput) {
 			res.Others = append(res.Others, OtherScore{TypeID: g.TypeID, Score: g.Score})
 			best = max(best, g.Score)
 		}
+		res.Date, res.Amount = sampleFields(s.Text, t)
 		r.Samples = append(r.Samples, res)
 		if !res.Confident {
 			r.Findings = append(r.Findings, Finding{Level: LevelWarning, Code: "sample.weak", RuleIdx: -1, Argument: s.Name,
@@ -250,6 +258,29 @@ func (r *Report) dryRun(in CheckInput) {
 		r.Findings = append(r.Findings, Finding{Level: LevelWarning, Code: "library.skipped", RuleIdx: -1, Argument: fmt.Sprint(r.Skipped),
 			Message: fmt.Sprintf("%d filed documents have no cached text and were not checked", r.Skipped)})
 	}
+}
+
+// sampleFields runs the date and amount search of the analyzer for one sample
+// with the settings of type t and formats the best results.
+func sampleFields(text string, t domain.DocumentType) (date, amount string) {
+	fields := PairColumns(text)
+	ds := FindDates(fields, time.Now(), DetectLanguage(text), t.Date)
+	if t.IsStatement {
+		if sd, ok := StatementDate(ds); ok {
+			ds = []DateCandidate{sd}
+		}
+	}
+	if len(ds) > 0 {
+		date = ds[0].Date.Format("2006-01-02")
+	}
+	if as := FindAmountFor(fields, t.Amount, t.Currency); len(as) > 0 {
+		a := as[0]
+		amount = fmt.Sprintf("%d.%02d", a.Cents/100, a.Cents%100)
+		if a.Currency != "" {
+			amount += " " + a.Currency
+		}
+	}
+	return date, amount
 }
 
 func hasErrorSince(f []Finding, from int) bool {

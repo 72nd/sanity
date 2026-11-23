@@ -71,6 +71,14 @@ func (f *Fake) SaveProject(ctx context.Context, name, inbox string, ignore []str
 	return nil
 }
 
+// SaveStatementKeywords implements Store.
+func (f *Fake) SaveStatementKeywords(ctx context.Context, words []string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.m.saveStatementKeywords(words)
+	return nil
+}
+
 // DeleteType implements Store.
 func (f *Fake) DeleteType(ctx context.Context, id string) error {
 	f.mu.Lock()
@@ -179,8 +187,9 @@ func sampleTypes() []domain.DocumentType {
 				{Kind: "keyword", Value: "Rechnungsnummer", Mode: "not", Weight: 0.9, Where: "any", Enabled: true},
 				{Kind: "filename", Value: "kontoauszug", Mode: "should", Weight: 0.5, Where: "filename", Enabled: true},
 			},
-			Threshold:  0.8,
-			UseLearned: true,
+			Threshold:   0.8,
+			UseLearned:  true,
+			IsStatement: true,
 			Date: domain.DateConfig{
 				PreferredLabels: []string{"Zeitraum bis", "Kontoauszug vom"},
 				Source:          "text",

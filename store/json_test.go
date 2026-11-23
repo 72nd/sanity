@@ -262,3 +262,31 @@ func TestJSONSaveProject(t *testing.T) {
 		t.Errorf("empty inbox must fall back to the default and tokens stay non-nil: %+v", p)
 	}
 }
+
+func TestStatementKeywordsPersist(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	j, err := OpenJSON(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, _ := j.Project(ctx)
+	if p.StatementKeywords != nil || !reflect.DeepEqual(p.StatementWords(), domain.DefaultStatementKeywords) {
+		t.Errorf("a new project uses the defaults: %+v", p.StatementKeywords)
+	}
+	if err := j.SaveStatementKeywords(ctx, []string{"Extrait"}); err != nil {
+		t.Fatal(err)
+	}
+	again, _ := OpenJSON(root)
+	p, _ = again.Project(ctx)
+	if !reflect.DeepEqual(p.StatementWords(), []string{"Extrait"}) {
+		t.Errorf("not persisted: %+v", p.StatementKeywords)
+	}
+	if err := again.SaveStatementKeywords(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	p, _ = again.Project(ctx)
+	if p.StatementKeywords == nil || len(p.StatementWords()) != 0 {
+		t.Errorf("an empty list switches the feature off: %+v", p.StatementKeywords)
+	}
+}

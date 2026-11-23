@@ -226,3 +226,26 @@ func TestLegendAndLists(t *testing.T) {
 		t.Errorf("list = %v", got)
 	}
 }
+
+func TestTypesAmountStatementCurrency(t *testing.T) {
+	ctx := context.Background()
+	p, st := newTypes(t)
+	p.SetAmountLabels(" Betrag , Total ")
+	p.SetStatement(true)
+	if err := p.SetCurrency("chf"); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.SetCurrency("XXX"); err == nil {
+		t.Error("unknown currency accepted")
+	}
+	if !p.Dirty() {
+		t.Fatal("not dirty")
+	}
+	if err := p.Save(ctx); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := st.Types(ctx)
+	if !got[0].IsStatement || got[0].Currency != "CHF" || strings.Join(got[0].Amount.PreferredLabels, "|") != "Betrag|Total" {
+		t.Errorf("stored = %+v", got[0])
+	}
+}

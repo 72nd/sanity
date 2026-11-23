@@ -55,13 +55,16 @@ type snippetRule struct {
 }
 
 type snippetType struct {
-	ID           string            `json:"id"`
-	Name         string            `json:"name"`
-	PathTemplate string            `json:"pathTemplate"`
-	Rules        []snippetRule     `json:"rules"`
-	Threshold    float64           `json:"threshold"`
-	UseLearned   *bool             `json:"useLearned"`
-	Date         domain.DateConfig `json:"date"`
+	ID           string              `json:"id"`
+	Name         string              `json:"name"`
+	PathTemplate string              `json:"pathTemplate"`
+	Rules        []snippetRule       `json:"rules"`
+	Threshold    float64             `json:"threshold"`
+	UseLearned   *bool               `json:"useLearned"`
+	Date         domain.DateConfig   `json:"date"`
+	Amount       domain.AmountConfig `json:"amount"`
+	Currency     string              `json:"currency"`
+	Statement    bool                `json:"statement"`
 }
 
 type snippetNote struct {
@@ -74,6 +77,7 @@ func (s snippetType) toDomain() domain.DocumentType {
 	t := domain.DocumentType{
 		ID: s.ID, Name: s.Name, PathTemplate: s.PathTemplate,
 		Threshold: s.Threshold, UseLearned: s.UseLearned == nil || *s.UseLearned, Date: s.Date,
+		Amount: s.Amount, Currency: strings.ToUpper(strings.TrimSpace(s.Currency)), IsStatement: s.Statement,
 	}
 	if t.Threshold == 0 {
 		t.Threshold = defaultThreshold

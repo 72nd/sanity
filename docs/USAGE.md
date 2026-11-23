@@ -376,6 +376,33 @@ are the strong rules; generic words are weak.
 - **Source**: Automatic, Text, File name or PDF metadata.
 - **Maximum age** (years). Dates older than this are not suggested. The value 0 means 15 years.
 
+**Amount**
+
+- **Preferred labels** (comma separated), for example `Betrag` or `Total`. A value whose label (on its
+  line, or the heading line above it) is a preferred label scores higher than the usual "total" words,
+  so it can win over a larger amount elsewhere.
+- **Currency of amounts without one**. A value without a currency sign takes the currency that most signs
+  in the document show, then this setting, then a currency code named in the text. Use it for statements
+  that print `90.00` only. Empty means none.
+
+**Statement.** The switch *Statement* marks a type as a bank or card statement (Kontoauszug). Its date
+is the latest date inside the calendar month that the document names most often (every occurrence
+counts; on a tie the later month wins), so a print date in October does not beat the April bookings.
+The other dates stay in the candidate list. Choosing a statement type by hand fills the date the same
+way when the date is still empty or only the automatic suggestion.
+
+**Statement keywords** (Project page). A project-wide list of words, by default `Kontoauszug`,
+`Buchungsnachweis`, `Buchungsdetails` and `Account statement`, separated by commas or lines. When a
+document contains one of them (any case), the score of every type without the *Statement* switch is
+multiplied by 0.2 and statement types that already match get a boost. A statement that lists a payment
+to Telekom is therefore not filed as a Telekom invoice, without a `not` rule on every type. If no type
+has the switch, nothing changes; an empty list switches the keywords off.
+
+**Columns.** Some PDFs and OCR output put labels and values in separate blocks (`Invoice number`,
+`Date of issue`, then the values below). When the same number of label lines and value lines (a date, an
+amount or an identifier with a digit) follow each other, the analysis pairs them one by one as if the
+values stood next to their labels. The text shown and stored stays as it is.
+
 **Learning.** A type learns from the documents you file with it (the letterhead fingerprint and the
 text of each document). Until a type has three filed documents, its learned score is capped at 0.7,
 so one example alone does not produce a confident suggestion without a rule. The learned data is kept

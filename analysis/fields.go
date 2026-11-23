@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/72nd/sanity/domain"
 )
 
 // Found is a string value found in text (invoice number, IBAN, VAT ID).
@@ -89,9 +91,23 @@ var amountLabels = []struct {
 	{regexp.MustCompile(`(?i)\b(?:zwischensumme|sub-?total|netto|net|mwst|ust|vat|tax|steuer|mehrwertsteuer|rabatt|discount|versand|shipping|porto|skonto)`), -0.3},
 }
 
+// preferredAmountWeight is added to a value whose label window contains one
+// of the type's preferred labels. It outweighs the generic "total" labels
+// (0.45) and the largest-value bonus (0.1) together, so a type that says
+// "Betrag" gets the amount next to "Betrag" even when a larger one is around.
+const preferredAmountWeight = 0.6
+
 // FindAmount returns money candidates, best first. The best one is usually the
 // grand total: it carries a total label and tends to be the largest value.
-func FindAmount(text string) []Amount {
+func FindAmount(text string) []Amount { return FindAmountFor(text, domain.AmountConfig{}, "") }
+
+// FindAmountFor is FindAmount with the type's preferred labels: a value whose
+// label window (the same and the previous line before it) contains a preferred
+// label, case-insensitively, scores preferredAmountWeight higher. currency
+// (an ISO code, may be empty) is the type's default for values that carry none;
+// it applies after the currency symbols of the document and before a code
+// named somewhere in the text.
+func FindAmountFor(text string, cfg domain.AmountConfig, currency string) []Amount {
 	var all []Amount
 	for _, m := range reMoney.FindAllStringIndex(text, -1) {
 		s, e := m[0], m[1]
@@ -132,6 +148,9 @@ func FindAmount(text string) []Amount {
 			}
 		}
 		score += w
+		if labelMatches(labelWindow(text, s), cfg.PreferredLabels) {
+			score += preferredAmountWeight
+		}
 		all = append(all, Amount{Cents: cents, Currency: cur, Raw: strings.TrimSpace(text[s:e]), Score: score, Offset: s})
 	}
 	if len(all) == 0 {
@@ -149,6 +168,9 @@ func FindAmount(text string) []Amount {
 		if k > n || k == n && c < docCur {
 			docCur, n = c, k
 		}
+	}
+	if docCur == "" {
+		docCur = strings.ToUpper(strings.TrimSpace(currency))
 	}
 	if docCur == "" { // no symbol next to a value: a code anywhere in the text
 		docCur = textCurrency(text)
@@ -194,6 +216,34 @@ func FindAmount(text string) []Amount {
 		return out[i].Cents > out[j].Cents
 	})
 	return out
+}
+
+// labelWindow is the text a preferred label may stand in for the value at s:
+// the line before it, and the previous line too when that is a heading, that
+// is, holds no money value of its own (then it belongs to another row).
+func labelWindow(text string, s int) string {
+	ls := lineStart(text, s)
+	win := text[ls:s]
+	if ls == 0 {
+		return win
+	}
+	ps := lineStart(text, ls-1)
+	if prev := text[ps : ls-1]; !reMoney.MatchString(prev) {
+		win = prev + "\n" + win
+	}
+	return win
+}
+
+// labelMatches reports whether window contains one of the labels,
+// case-insensitively; empty labels are ignored.
+func labelMatches(window string, labels []string) bool {
+	lw := strings.ToLower(window)
+	for _, l := range labels {
+		if l = strings.TrimSpace(l); l != "" && strings.Contains(lw, strings.ToLower(l)) {
+			return true
+		}
+	}
+	return false
 }
 
 var reCurCode = regexp.MustCompile(`\b(EUR|CHF|USD|GBP)\b`)

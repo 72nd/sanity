@@ -19,6 +19,7 @@ type DateCandidate struct {
 	Raw      string    // the matched text
 	Period   bool      // part of a date range such as a billing period
 	Fallback bool      // not from the text; never a confident suggestion
+	Count    int       // how often this date occurs in the text (0 for fallbacks)
 }
 
 const dateWindow = 40
@@ -263,6 +264,10 @@ func FindDates(text string, now time.Time, lang string, cfg domain.DateConfig) [
 
 	total := float64(len(text))
 	counts := map[string]int{}
+	occurs := map[string]int{} // every occurrence, whatever the reading
+	for _, r := range raws {
+		occurs[key(r)]++
+	}
 	for i, r := range raws {
 		if !period[i] && r.penalty == 0 {
 			counts[key(r)]++
@@ -309,7 +314,7 @@ func FindDates(text string, now time.Time, lang string, cfg domain.DateConfig) [
 			score = 0.2
 		}
 		all = append(all, DateCandidate{Date: d, Label: label, Score: dClamp(score), Offset: r.start,
-			Raw: text[r.start:r.end], Period: isPeriod})
+			Raw: text[r.start:r.end], Period: isPeriod, Count: occurs[key(r)]})
 	}
 	// keep the best occurrence per date
 	best := map[time.Time]int{}

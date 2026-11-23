@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/72nd/sanity/analysis"
 	"github.com/72nd/sanity/domain"
 	"github.com/72nd/sanity/store"
 )
@@ -336,6 +337,32 @@ func (p *Types) SetUseLearned(on bool) { p.draft.UseLearned = on }
 
 // SetPreferredLabels sets the preferred date labels from comma separated text.
 func (p *Types) SetPreferredLabels(s string) { p.draft.Date.PreferredLabels = SplitList(s) }
+
+// SetAmountLabels sets the preferred amount labels from comma separated text.
+func (p *Types) SetAmountLabels(s string) { p.draft.Amount.PreferredLabels = SplitList(s) }
+
+// SetStatement marks the type as a statement type (Kontoauszug).
+func (p *Types) SetStatement(on bool) { p.draft.IsStatement = on }
+
+// SetCurrency sets the default currency by code or label; "" or the label of
+// "none" clears it.
+func (p *Types) SetCurrency(s string) error {
+	id, err := p.parseChoice(p.CurrencyChoices(), s)
+	if err != nil {
+		return err
+	}
+	p.draft.Currency = id
+	return nil
+}
+
+// CurrencyChoices are "none" and the supported currency codes.
+func (p *Types) CurrencyChoices() []Choice {
+	out := []Choice{{ID: "", Label: p.T("types.currency.none")}}
+	for _, c := range analysis.Currencies {
+		out = append(out, Choice{ID: c, Label: c})
+	}
+	return out
+}
 
 // SetIgnoreLabels sets the ignored date labels from comma separated text.
 func (p *Types) SetIgnoreLabels(s string) { p.draft.Date.IgnoreLabels = SplitList(s) }
@@ -676,6 +703,7 @@ func cloneDocType(t domain.DocumentType) domain.DocumentType {
 	t.Rules = slices.Clone(t.Rules)
 	t.Date.PreferredLabels = slices.Clone(t.Date.PreferredLabels)
 	t.Date.IgnoreLabels = slices.Clone(t.Date.IgnoreLabels)
+	t.Amount.PreferredLabels = slices.Clone(t.Amount.PreferredLabels)
 	return t
 }
 
@@ -690,6 +718,9 @@ func normType(t domain.DocumentType) domain.DocumentType {
 	}
 	if len(t.Date.IgnoreLabels) == 0 {
 		t.Date.IgnoreLabels = nil
+	}
+	if len(t.Amount.PreferredLabels) == 0 {
+		t.Amount.PreferredLabels = nil
 	}
 	return t
 }

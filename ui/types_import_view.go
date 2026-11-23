@@ -222,6 +222,8 @@ func (d *importDialog) dryColumns() []grid.Column[presenter.DryRunRow] {
 				}
 				return i18n.T("types.import.no")
 			}},
+		{ID: "date", Title: i18n.T("types.import.dry.date"), Width: 110, Value: func(r presenter.DryRunRow) string { return r.Date }},
+		{ID: "amount", Title: i18n.T("types.import.dry.amount"), Width: 110, Value: func(r presenter.DryRunRow) string { return r.Amount }},
 		{ID: "others", Title: i18n.T("types.import.dry.others"), Width: 300, Value: func(r presenter.DryRunRow) string { return r.Others }},
 	}
 }
