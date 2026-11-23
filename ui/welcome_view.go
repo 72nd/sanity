@@ -84,35 +84,45 @@ func NewProjectDialog(sh *shell.Shell, nav *ProjectNav, start string) {
 	})
 }
 
-// ProjectMenu builds the drop-down for the toolbar: the open project, the
-// other recent projects, "open project" and "overview". cur names the open
-// project. Build it again after the project or the recent list changed.
-func ProjectMenu(sh *shell.Shell, nav *ProjectNav, root, name string) *widgets.Select {
-	entries := nav.Recents.Menu(root, name, i18n.T)
-	labels := make([]string, len(entries))
-	for i, e := range entries {
-		labels[i] = e.Label
-	}
-	sel := widgets.NewSelect(labels, nil)
-	sel.SetSelectedIndex(0)
-	sel.OnPicked = func(label string) {
-		for i, e := range entries {
-			if e.Label != label || i == 0 {
-				continue
+// ProjectMenu builds the project switcher for the toolbar: a button with the
+// open project's name that opens a menu. The menu lists the open project
+// (checked, disabled) and the other recent projects with a folder icon, then,
+// below a separator, the two commands "open project" and "overview", each with
+// its own icon, so projects and meta commands cannot be mixed up. Build it
+// again after the project or the recent list changed.
+func ProjectMenu(sh *shell.Shell, nav *ProjectNav, root, name string) fyne.CanvasObject {
+	var btn *widgets.Button
+	btn = widgets.NewButton(name, widgets.ButtonToolbar, func() {
+		pos := fyne.CurrentApp().Driver().AbsolutePositionForObject(btn)
+		widgets.ShowContextMenu(btn, fyne.NewPos(pos.X, pos.Y+btn.Size().Height), projectMenuItems(sh, nav, root, name))
+	})
+	btn.SetIcon(fynetheme.IconNameMoveDown)
+	return btn
+}
+
+// projectMenuItems maps the rows of Recents.Menu to menu items.
+func projectMenuItems(sh *shell.Shell, nav *ProjectNav, root, name string) []widgets.MenuItem {
+	var items []widgets.MenuItem
+	sep := false
+	for _, e := range nav.Recents.Menu(root, name, i18n.T) {
+		e := e
+		switch e.Kind {
+		case presenter.MenuCurrent:
+			items = append(items, widgets.MenuItem{Label: e.Label, Icon: fynetheme.IconNameConfirm, Disabled: true})
+		case presenter.MenuRecent:
+			items = append(items, widgets.MenuItem{Label: e.Label, Icon: fynetheme.IconNameFolder, Action: func() { RequestSwitch(sh, nav, e.Root) }})
+		case presenter.MenuOpen:
+			if !sep {
+				items, sep = append(items, widgets.MenuSeparator()), true
 			}
-			switch e.Kind {
-			case presenter.MenuRecent:
-				RequestSwitch(sh, nav, e.Root)
-			case presenter.MenuOpen:
-				OpenProjectDialog(sh, nav, filepath.Dir(root))
-			case presenter.MenuOverview:
+			items = append(items, widgets.MenuItem{Label: e.Label, Icon: fynetheme.IconNameFolderOpen, Action: func() { OpenProjectDialog(sh, nav, filepath.Dir(root)) }})
+		case presenter.MenuOverview:
+			items = append(items, widgets.MenuItem{Label: e.Label, Icon: fynetheme.IconNameHome, Action: func() {
 				if nav.Overview != nil {
 					nav.Overview()
 				}
-			}
-			break
+			}})
 		}
-		sel.SetSelectedIndex(0) // the field always shows the open project
 	}
-	return sel
+	return items
 }

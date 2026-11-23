@@ -14,7 +14,7 @@ import (
 	"github.com/72nd/sanity/ui/presenter"
 )
 
-// The project menu lists the open project first, opens a recent project and
+// The project menu lists the open project first (checked), opens a recent project and
 // goes to the overview; afterwards it shows the open project again.
 func TestProjectMenuPicks(t *testing.T) {
 	i18n.MustAddFiles(locales.FS, locales.Files...)
@@ -36,18 +36,30 @@ func TestProjectMenuPicks(t *testing.T) {
 	sh := shell.New(test.NewTempApp(t), shell.Config{TitleKey: "app.title", Width: 800, Height: 600,
 		Pages: []shell.Page{{ID: "welcome", TitleKey: "welcome.nav",
 			Build: func(sh *shell.Shell) fyne.CanvasObject { return WelcomePage(sh, nil, nav) }}}})
-	sel := ProjectMenu(sh, nav, "/p/one", "One")
-	want := []string{"One", "Two", "Open project…", "Overview"}
-	if got := sel.Options(); len(got) != len(want) || got[1] != "Two" || got[3] != "Overview" {
-		t.Fatalf("options = %q", got)
+	if ProjectMenu(sh, nav, "/p/one", "One") == nil {
+		t.Fatal("no menu button")
 	}
-	sel.SetSelected("Two")
-	sel.OnPicked("Two")
-	if switched != two || sel.SelectedIndex() != 0 {
-		t.Errorf("switched=%q index=%d", switched, sel.SelectedIndex())
+	items := projectMenuItems(sh, nav, "/p/one", "One")
+	var labels []string
+	for _, it := range items {
+		labels = append(labels, it.Label)
+		if !it.Separator && it.Icon == "" {
+			t.Errorf("%q has no icon", it.Label)
+		}
 	}
-	sel.OnPicked("Overview")
-	if overview != 1 || sel.SelectedIndex() != 0 {
-		t.Errorf("overview=%d index=%d", overview, sel.SelectedIndex())
+	want := []string{"One", "Two", "", "Open project…", "Overview"}
+	if len(labels) != len(want) {
+		t.Fatalf("items = %q, want %q", labels, want)
+	}
+	if !items[0].Disabled || !items[2].Separator || items[4].Label != "Overview" {
+		t.Errorf("items = %+v", items)
+	}
+	items[1].Action()
+	if switched != two {
+		t.Errorf("switched = %q", switched)
+	}
+	items[4].Action()
+	if overview != 1 {
+		t.Errorf("overview = %d", overview)
 	}
 }

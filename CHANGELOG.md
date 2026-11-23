@@ -32,3 +32,6 @@
 - FEAT: Sort: Shift+Enter goes to the previous field (needs fine `OnSubmitBack`/`OnCommitBack`)
 - FIX: After undo or batch undo of a filing the origin is kept (also after a restart), so the document can be put back
 - STYLE: New app icon: petrol date stamp with ring and bead wreath (variants in `prj/icons/`)
+- FIX: The welcome page lists the recent projects at start (the list was built before the preferences existed)
+- FIX: The Vim keys hint on the settings page wraps instead of running out of the window
+- STYLE: The project switcher sits at the left of the toolbar and opens a menu: projects with a folder icon (open one checked), then "Open project…" and "Overview" with their own icons below a separator

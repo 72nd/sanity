@@ -29,20 +29,6 @@ type application struct {
 	demo    bool
 }
 
-// shellPrefs forwards to the preferences of the shell, which exist only after
-// shell.New, while the welcome page (built inside New) already lists the
-// recent projects.
-type shellPrefs struct{ a *application }
-
-func (p shellPrefs) LoadJSON(key string, v any) bool {
-	return p.a.sh != nil && p.a.sh.Prefs.LoadJSON(key, v)
-}
-func (p shellPrefs) SaveJSON(key string, v any) {
-	if p.a.sh != nil {
-		p.a.sh.Prefs.SaveJSON(key, v)
-	}
-}
-
 // pages returns the navigation for the current services.
 func (a *application) pages() []shell.Page {
 	s := a.cur
@@ -77,10 +63,10 @@ func (a *application) updateToolbar() {
 		return
 	}
 	if a.cur == nil {
-		a.sh.SetToolbarApp()
+		a.sh.SetToolbarAppLeft()
 		return
 	}
-	a.sh.SetToolbarApp(ui.ProjectMenu(a.sh, a.nav, a.cur.Root, a.cur.Name))
+	a.sh.SetToolbarAppLeft(ui.ProjectMenu(a.sh, a.nav, a.cur.Root, a.cur.Name))
 }
 
 // showWelcome closes the open project and shows the welcome page. Unsaved
@@ -137,8 +123,12 @@ func main() {
 	}
 	i18n.MustAddFiles(locales.FS, locales.Files...)
 
+	// The Fyne app comes first: the welcome page is built inside shell.New and
+	// already lists the recent projects, so they read the preferences directly.
+	fyneApp := app.NewWithID("com.72nd.sanity")
+	fyneApp.SetIcon(appIcon())
 	a := &application{act: ui.NewSortActions(), keys: presenter.NewKeys(nil)}
-	a.recents = presenter.NewRecents(shellPrefs{a})
+	a.recents = presenter.NewRecents(shell.NewPrefs(fyneApp.Preferences()))
 	root := ""
 	if len(os.Args) > 1 && os.Args[1] == "-demo" {
 		root, _ = os.MkdirTemp("", "sanity-demo-")
@@ -160,8 +150,6 @@ func main() {
 		}
 	}()
 
-	fyneApp := app.NewWithID("com.72nd.sanity")
-	fyneApp.SetIcon(appIcon())
 	a.nav = &ui.ProjectNav{
 		Recents:  a.recents,
 		Switch:   a.switchTo,

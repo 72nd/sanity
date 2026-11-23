@@ -6,10 +6,12 @@ import (
 	"strings"
 	"testing"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
 
 	"github.com/72nd/fine/shell"
 	"github.com/72nd/fine/shell/i18n"
+	"github.com/72nd/fine/widgets"
 	"github.com/72nd/sanity/inbox"
 	"github.com/72nd/sanity/locales"
 	"github.com/72nd/sanity/pdf"
@@ -134,9 +136,10 @@ func TestWelcomeThenProjectThenOverview(t *testing.T) {
 	i18n.MustAddFiles(locales.FS, locales.Files...)
 	i18n.SetLanguage("en")
 	a := &application{act: ui.NewSortActions(), keys: presenter.NewKeys(nil)}
-	a.recents = presenter.NewRecents(shellPrefs{a})
+	fapp := test.NewTempApp(t)
+	a.recents = presenter.NewRecents(shell.NewPrefs(fapp.Preferences()))
 	a.nav = &ui.ProjectNav{Recents: a.recents, Switch: a.switchTo, Dirty: func() bool { return a.cur != nil && a.cur.project.Dirty() }, Overview: a.showWelcome}
-	a.sh = shell.New(test.NewTempApp(t), shell.Config{TitleKey: "app.title", Pages: a.pages(), Width: 1000, Height: 700, Version: Version})
+	a.sh = shell.New(fapp, shell.Config{TitleKey: "app.title", Pages: a.pages(), Width: 1000, Height: 700, Version: Version})
 	a.remember()
 	if a.sh.Current() != "welcome" || len(a.pages()) != 1 {
 		t.Fatalf("start page = %q (%d pages)", a.sh.Current(), len(a.pages()))
@@ -159,4 +162,47 @@ func TestWelcomeThenProjectThenOverview(t *testing.T) {
 	if a.cur == nil || a.sh.Current() != "library" {
 		t.Errorf("reopen: page=%q", a.sh.Current())
 	}
+}
+
+// The welcome page is built inside shell.New and must already list the
+// projects remembered in an earlier run.
+func TestWelcomeListsRememberedProjects(t *testing.T) {
+	i18n.MustAddFiles(locales.FS, locales.Files...)
+	i18n.SetLanguage("en")
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "office"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(presenter.ProjectFile(root), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	fapp := test.NewTempApp(t)
+	presenter.NewRecents(shell.NewPrefs(fapp.Preferences())).Add(root, "Remembered GmbH")
+
+	a := &application{act: ui.NewSortActions(), keys: presenter.NewKeys(nil)}
+	a.recents = presenter.NewRecents(shell.NewPrefs(fapp.Preferences()))
+	a.nav = &ui.ProjectNav{Recents: a.recents, Switch: a.switchTo}
+	a.sh = shell.New(fapp, shell.Config{TitleKey: "app.title", Pages: a.pages(), Width: 1000, Height: 700})
+	if !hasLabel(a.sh.Win.Canvas().Content(), "Remembered GmbH") {
+		t.Error("the welcome page does not show the remembered project")
+	}
+}
+
+func hasLabel(o fyne.CanvasObject, want string) bool {
+	if l, ok := o.(*widgets.Label); ok && strings.Contains(l.Text, want) {
+		return true
+	}
+	var kids []fyne.CanvasObject
+	switch w := o.(type) {
+	case *fyne.Container:
+		kids = w.Objects
+	case fyne.Widget:
+		kids = test.WidgetRenderer(w).Objects()
+	}
+	for _, k := range kids {
+		if hasLabel(k, want) {
+			return true
+		}
+	}
+	return false
 }

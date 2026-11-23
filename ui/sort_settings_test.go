@@ -48,3 +48,19 @@ func TestVimSettingsAndPasteCommand(t *testing.T) {
 		t.Error("sort.paste must call PasteFiles")
 	}
 }
+
+func TestVimSettingsHintWrapsWhenNarrow(t *testing.T) {
+	i18n.MustAddFiles(locales.FS, locales.Files...)
+	a := test.NewApp()
+	defer a.Quit()
+	sh := shell.New(a, shell.Config{TitleKey: "app.title", Width: 800, Height: 600,
+		Pages: []shell.Page{{ID: "x", TitleKey: "app.title", Build: func(*shell.Shell) fyne.CanvasObject { return widgets.NewLabel("x", widgets.LabelBody) }}}})
+	row := VimSettings().Build(sh)
+	w := test.NewTempWindow(t, row)
+	w.Resize(fyne.NewSize(900, 300))
+	wide := row.MinSize().Height
+	w.Resize(fyne.NewSize(260, 300))
+	if narrow := row.MinSize().Height; narrow <= wide {
+		t.Errorf("hint must wrap on a narrow page: height %v, wide %v", narrow, wide)
+	}
+}
