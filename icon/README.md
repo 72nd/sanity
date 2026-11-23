@@ -1,11 +1,11 @@
 # App icon
 
-A date stamp ("received 23.05.") in violet. Two variants of one motif:
+A date stamp ("received 23.05.") in petrol, with a ring, a bead wreath and a date plaque. Two variants of one motif:
 
 | File | Used for |
 |---|---|
-| `icon-large.svg` | 128 px and up: double ring, tick band, text lines, ink texture |
-| `icon-small.svg` | 64 px and below: ring and date band only |
+| `icon-large.svg` | 128 px and up: ring, bead wreath, date plaque, text lines, ink texture |
+| `icon-small.svg` | 64 px and below: ring, thicker beads and date plaque only |
 | `icon.png` | 1024 px, the large variant. Embedded in the binary (`icon.go`) and the `Icon` of `FyneApp.toml` |
 | `icon.icns` | All macOS sizes, large and small variants mixed |
 

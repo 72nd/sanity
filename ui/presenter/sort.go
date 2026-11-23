@@ -58,6 +58,9 @@ type Sort struct {
 
 // NewSort creates the presenter.
 func NewSort(s store.Store, q *inbox.Queue, f *inbox.Filer, e pdf.Engine, t Translator) *Sort {
+	if f.Origins == nil && q != nil {
+		f.Origins = q // an undone filing gets its origin back
+	}
 	return &Sort{store: s, queue: q, filer: f, pdf: e, T: t}
 }
 

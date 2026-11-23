@@ -30,6 +30,16 @@ type filed struct {
 	move  Move
 	entry domain.LibraryEntry
 	batch string
+	// origin is where the document came from before it was filed ("" when it
+	// had none); Undo gives it back to the queue.
+	origin string
+}
+
+// OriginKeeper remembers where inbox documents came from. *Queue implements
+// it. The Filer uses it to carry the origin across File and Undo.
+type OriginKeeper interface {
+	Origin(path string) (string, bool)
+	SetOrigin(path, origin string) error
 }
 
 // Filer files documents (always a move) and undoes the last filings.
@@ -43,6 +53,10 @@ type Filer struct {
 	// an undo. Both are optional.
 	OnFiled  func(entry domain.LibraryEntry, text string)
 	OnUndone func(entry domain.LibraryEntry)
+
+	// Origins is optional: when set, the origin of a filed document is kept
+	// in the undo entry and restored when the filing is undone.
+	Origins OriginKeeper
 
 	mu   sync.Mutex
 	undo []filed
@@ -72,6 +86,10 @@ func (f *Filer) File(ctx context.Context, r Request) (domain.LibraryEntry, error
 		_, err := os.Lstat(filepath.Join(f.Root, filepath.FromSlash(p)))
 		return err == nil
 	})
+	var origin string
+	if f.Origins != nil {
+		origin, _ = f.Origins.Origin(r.Path)
+	}
 	mv, err := MoveFile(r.Path, filepath.Join(f.Root, filepath.FromSlash(rel)))
 	if err != nil {
 		return domain.LibraryEntry{}, err
@@ -89,7 +107,7 @@ func (f *Filer) File(ctx context.Context, r Request) (domain.LibraryEntry, error
 		return domain.LibraryEntry{}, err
 	}
 	f.mu.Lock()
-	f.undo = append(f.undo, filed{mv, e, r.Batch})
+	f.undo = append(f.undo, filed{mv, e, r.Batch, origin})
 	f.mu.Unlock()
 	if f.OnFiled != nil {
 		f.OnFiled(e, r.Text)
@@ -120,6 +138,10 @@ func (f *Filer) UndoLast(ctx context.Context) (domain.LibraryEntry, error) {
 	f.mu.Lock()
 	f.undo = f.undo[:len(f.undo)-1]
 	f.mu.Unlock()
+	if last.origin != "" && f.Origins != nil {
+		// Best effort: the document is back in the inbox either way.
+		_ = f.Origins.SetOrigin(last.move.From, last.origin)
+	}
 	if err := f.Store.RemoveEntry(ctx, last.entry.ID); err != nil {
 		return domain.LibraryEntry{}, err
 	}

@@ -56,7 +56,7 @@ Gaps, bugs and surprises found while building sanity. Newest first.
 - `DialogButton` has no `Disabled`/`SetEnabled` (workaround: `KeepOpen` and a guard in the callback); `widgets.Dialog` exposes no footer buttons for tests.
 - `shell.New` builds the first page immediately, before `sh.Prefs` exists (Recents on the welcome page). A config hook or a `Prefs` instance before `New` would be cleaner.
 - `widgets.Select` has no icon and no separator; "Open project…" and "Overview" are plain options. `ShowFolderOpen` cannot create a folder.
-- Fyne gives no modifiers in `KeyEvent`: Shift+Enter arrives as `TypedKey(Return)` at the focused widget. Entry/Picker/DateEntry need `OnSubmitBack`/`OnCommitBack` (open, needs a decision).
+- Fyne gives no modifiers in `KeyEvent`: Shift+Enter arrives as `TypedKey(Return)` at the focused widget. Solved with `Entry.OnSubmitBack`, `DateEntry.OnSubmitBack`, `Picker.OnCommitBack` (fields count Shift via KeyDown/KeyUp); untested with the real GLFW key order.
 - A `Command` has one shortcut; Cmd++ needs three commands (`+`, `=`, Shift+`=`) that show up several times in the palette and the shortcut dialog. `Command.Aliases` or a `Hidden` flag would be cleaner.
 - `Sort.LoadTypes` writes `p.types` from a goroutine (latent race, as at the first load).
 - After "Overview" only the welcome page commands are active; Library/Sort shortcuts are not checked for nil safety without a project.

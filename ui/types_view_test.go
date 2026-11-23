@@ -46,6 +46,9 @@ func TestTypesPageShowsRules(t *testing.T) {
 	if tp.Dirty() {
 		t.Error("dirty after opening")
 	}
+	if !w.tpl.Mono() {
+		t.Error("path template field is not monospace")
+	}
 }
 
 // The Kind, Mode, Strength and Where cells are drop-downs: a pick of another

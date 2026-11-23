@@ -11,7 +11,7 @@ import pathlib
 
 OUT = pathlib.Path(__file__).parent
 
-BG_TOP, BG_BOTTOM, INK = "#b86bff", "#5e1ab8", "#ffeaf6"
+BG_TOP, BG_BOTTOM, INK = "#2fd0b8", "#0b5a63", "#eafff8"  # petrol (v0.2.0)
 DATE = "23.05"
 C = 512  # canvas is 1024; the macOS squircle is 824 wide with a 100 px margin
 TILT = -10  # the stamp sits slightly crooked
@@ -67,17 +67,11 @@ def bars(specs):
 
 
 def large_motif():
-    return "".join([
-        ring(318, 26), ring(284, 9),            # double outer ring
-        ring(262, 7), ticks(72, 232, 250, 6),   # fine ring and tick band
-        ring(216, 12),                          # inner ring
-        band(208, -52, 52, 190, 58, 80, 16, 74, 56),
-        bars([(-132, 230), (-100, 150), (86, 150), (118, 230)]),
-    ])
+    return MOTIF[0]()
 
 
 def small_motif():
-    return "".join([ring(322, 64), band(268, -78, 78, 262, 62, 100, 20, 96, 100)])
+    return MOTIF[1]()
 
 
 def svg(motif, texture, colors=None):

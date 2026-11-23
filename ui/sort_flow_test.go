@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/test"
 
 	"github.com/72nd/fine/shell"
@@ -284,5 +285,29 @@ func TestSortReloadsTypesOnShow(t *testing.T) {
 	settle()
 	if got := len(sp.Types()); got != before+1 {
 		t.Errorf("types after show %d, want %d", got, before+1)
+	}
+}
+
+// Shift+Enter in a field goes back: Fyne has no modifiers in KeyEvent, so the
+// fields count Shift from KeyDown/KeyUp and Return arrives as TypedKey.
+func TestSortShiftEnterGoesBack(t *testing.T) {
+	sh, _, _ := newShell(t, 1)
+	sh.Show("sort")
+	settle()
+	w := lastAct.fields
+	shiftEnter := func(f fyne.Focusable) {
+		shift := &fyne.KeyEvent{Name: desktop.KeyShiftLeft}
+		f.(desktop.Keyable).KeyDown(shift)
+		f.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
+		f.(desktop.Keyable).KeyUp(shift)
+	}
+	sh.Focus(w.amount)
+	shiftEnter(w.amount)
+	if sh.Win.Canvas().Focused() != any(w.invoice) {
+		t.Fatalf("amount + Shift+Enter: focus %s, want invoice", focusedKind(sh))
+	}
+	shiftEnter(w.invoice)
+	if got := focusedKind(sh); got != "*widgets.dateField" {
+		t.Fatalf("invoice + Shift+Enter: focus %s, want date", got)
 	}
 }

@@ -29,4 +29,6 @@
 - STYLE: Types settings: date format legend one line per year/month/day, "Choose folder" next to the path preview, Source and Maximum age side by side in wide windows, monospace path fields
 - STYLE: Type import dialog: save buttons in the dialog footer, tables scroll sideways, warnings wrap
 - STYLE: Shortcut overview in a 720 px dialog with two columns, opened from a footer button
-- CHORE: Icon variants for v0.2 in `prj/icons/` (selection pending)
+- FEAT: Sort: Shift+Enter goes to the previous field (needs fine `OnSubmitBack`/`OnCommitBack`)
+- FIX: After undo or batch undo of a filing the origin is kept (also after a restart), so the document can be put back
+- STYLE: New app icon: petrol date stamp with ring and bead wreath (variants in `prj/icons/`)

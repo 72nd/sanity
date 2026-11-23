@@ -95,6 +95,30 @@ func (q *Queue) Origin(id string) (string, bool) {
 	return "", false
 }
 
+// SetOrigin records origin for the file at path (inside the inbox folder) and
+// saves it; a queued item gets the origin too. It is used to restore the origin
+// after an undone filing.
+func (q *Queue) SetOrigin(path, origin string) error {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	q.mu.Lock()
+	k, ok := q.keyLocked(abs)
+	if !ok {
+		q.mu.Unlock()
+		return nil // not in the inbox folder: nothing to remember
+	}
+	q.origins[k] = origin
+	if i := q.indexLocked(abs); i >= 0 {
+		q.items[i].Origin = origin
+	}
+	err = q.saveOriginsLocked()
+	q.mu.Unlock()
+	q.changed()
+	return err
+}
+
 // Import moves files and folders (recursively, PDFs only, hidden entries
 // skipped) into the inbox folder and queues them, remembering each origin. A
 // name that is taken gets a suffix (_2, _3, ...). Files already in the inbox

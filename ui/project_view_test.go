@@ -51,6 +51,9 @@ func TestProjectPageEditsAndSaves(t *testing.T) {
 	if w.name.Text != "Muster GmbH" || w.inbox.Text != "office/inbox" {
 		t.Fatalf("fields: %q %q", w.name.Text, w.inbox.Text)
 	}
+	if !w.inbox.Mono() {
+		t.Error("inbox field is not monospace")
+	}
 	if !w.save.Disabled() || len(w.recentBox.Objects) != 1 {
 		t.Errorf("save disabled=%v recents=%d", w.save.Disabled(), len(w.recentBox.Objects))
 	}

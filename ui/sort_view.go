@@ -107,6 +107,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 			}
 		}
 		e.OnSubmitted = func(string) { w.step("text:"+label, 1) }
+		e.OnSubmitBack = func() { w.step("text:"+label, -1) }
 		e.OnEscape = func() { act.SetMode(true) }
 		textEntries[label] = e
 		return e
@@ -424,6 +425,8 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		refreshForm()
 	}
 	w.date.OnSubmitted = func(*time.Time) { w.step("date", 1) }
+	w.date.OnSubmitBack = func(*time.Time) { w.step("date", -1) }
+	w.picker.OnCommitBack = func() { w.step("type", -1) }
 	w.invoice.OnChanged = func(s string) {
 		if !syncing {
 			p.SetInvoice(s)
@@ -431,6 +434,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		}
 	}
 	w.invoice.OnSubmitted = func(string) { w.step("invoice", 1) }
+	w.invoice.OnSubmitBack = func() { w.step("invoice", -1) }
 	w.amount.OnChanged = func(s string) {
 		if !syncing {
 			p.SetAmount(s)
@@ -438,6 +442,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		}
 	}
 	w.amount.OnSubmitted = func(string) { w.step("amount", 1) }
+	w.amount.OnSubmitBack = func() { w.step("amount", -1) }
 	w.queue.OnActivated = func(it *inbox.Item) {
 		if it != nil && p.Open(it.ID) {
 			showDoc()
