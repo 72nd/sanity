@@ -12,4 +12,4 @@ type OCROptions struct {
 
 // DefaultOCR is what Text uses for scans: about 250 dpi, and text down to
 // about 0.5 % of the page height (6 pt on an A4 page).
-var DefaultOCR = OCROptions{Scale: 1.5, MinTextHeight: 0.005}
+var DefaultOCR = OCROptions{Scale: 1.0, MinTextHeight: 0.005}
