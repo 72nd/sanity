@@ -37,9 +37,13 @@
 - STYLE: The project switcher sits at the left of the toolbar and opens a menu: projects with a folder icon (open one checked), then "Open project…" and "Overview" with their own icons below a separator
 - STYLE: Sort side panel rebuilt: header with document name and position, scrolling form (duplicate callout with icon, type, date, number and amount side by side), pinned footer with state (Missing/Ready, localized field names, target path) and actions; File is disabled until complete, the rest (learn rules, put back, adopt, delete) sits in a "more" menu; batch panel wraps and says why filing is blocked
 
-## Unreleased (v0.3.0)
+## v0.3.0
 - FEAT: Sort: "Add files" (Cmd+O) selects several files at once (native dialog via `widgets.ShowFilesOpen`)
 - FEAT: Library: value filter per column (funnel icon in the header, Alt+Down), condition dialog (date, amount, text), multi-key sort and grouping by year, quarter or month with amount sums per currency in the group header
 - FEAT: Library: filter, sort and grouping are kept between visits and restarts; "Conditions (n)" button and "Clear all filters" next to the quick filter; the status bar counts shown documents
 - FEAT: Library commands: "Filter column" (Cmd+Alt+F, Vim `f`), "Filter conditions…" (Cmd+Shift+F, Vim `F`), "Clear all filters", "Remove grouping"
+- FEAT: `SANITY_CPUPROFILE=<file>` records a CPU profile of the running app (`SANITY_CPUPROFILE_SECS`, default 30)
 - FIX: Library: amounts sort by value, not by text
+- FIX: Library: sorting and the filter funnel react at once instead of after the double-click delay; parsed amounts are cached for sorting
+- STYLE: Project page in two columns on wide windows (statements card on the left, identifiers text area as tall as its card), wrapping hints, "Overview" button instead of the recent projects list
+- CHORE: Built against fine v0.5.0 (still through the local checkout, `replace => ../..`, while fine is private)

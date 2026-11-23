@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	fyne.io/fyne/v2 v2.8.2
-	github.com/72nd/fine v0.4.0
+	github.com/72nd/fine v0.5.0
 	github.com/fsnotify/fsnotify v1.9.0
 )
 
