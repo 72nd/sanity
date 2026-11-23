@@ -160,7 +160,7 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 	ignoreRow := widgets.NewFormRow(i18n.T("project.ignore"), ignore)
 	hint := widgets.NewWrapLabel(i18n.T("project.ignore.hint"), widgets.LabelSmall)
 	statement := widgets.NewTextArea()
-	statement.SetMinRowsVisible(3)
+	statement.SetMinRowsVisible(5)
 	statementRow := widgets.NewFormRow(i18n.T("project.statement"), statement)
 	statementHint := widgets.NewWrapLabel(i18n.T("project.statement.hint"), widgets.LabelSmall)
 
@@ -249,7 +249,7 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 	idents := widgets.NewCard(i18n.T("project.card.ignore"), i18n.T("project.card.ignore.desc"), stack(6, ignoreRow, hint))
 	statements := widgets.NewCard(i18n.T("project.card.statement"), i18n.T("project.card.statement.desc"), stack(6, statementRow, statementHint))
 	cards := widgets.ResponsiveColumns(minCardWidth, cardGap,
-		basics, stack(cardGap, idents, statements))
+		stack(cardGap, basics, statements), idents)
 	body := widgets.VScroll(widgets.PagePadded(widgets.MaxWidth(1200,
 		stack(cardGap, cards, gap(sectionGap-cardGap), widgets.HBox(overviewBtn)))))
 	bar := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, 6,
