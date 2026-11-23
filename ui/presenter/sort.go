@@ -113,22 +113,24 @@ func (p *Sort) Step(delta int) bool {
 	return p.Open(items[((idx+delta)%n+n)%n].ID)
 }
 
-// Import adds files or folders to the queue and opens the first new document,
-// so a file the user adds is shown at once. Files the watcher finds are added
-// to the queue directly and do not take the current document away. It reports
-// whether a new document was opened.
+// Import moves files or folders into the inbox folder (the origin is kept, see
+// PutBack) and opens the first new document, so a file the user adds is shown
+// at once. Files the watcher finds are added to the queue directly and do not
+// take the current document away. It reports whether a new document was opened.
+// Use ImportPaths to get the error of a move that failed.
 func (p *Sort) Import(paths ...string) bool {
-	known := map[string]bool{}
-	for _, it := range p.queue.Items() {
-		known[it.ID] = true
+	opened, _ := p.ImportPaths(paths...)
+	return opened
+}
+
+// ImportPaths is Import with the error: files that could not be moved are
+// skipped, the others are imported. Call it from a goroutine; it moves files.
+func (p *Sort) ImportPaths(paths ...string) (opened bool, err error) {
+	ids, err := p.queue.Import(paths...)
+	if len(ids) > 0 {
+		opened = p.Open(ids[0])
 	}
-	p.queue.Add(paths...)
-	for _, it := range p.queue.Items() {
-		if !known[it.ID] {
-			return p.Open(it.ID)
-		}
-	}
-	return false
+	return opened, err
 }
 
 // Form returns a copy of the form.
@@ -322,7 +324,7 @@ func (p *Sort) View(id string) ViewState {
 }
 
 // CopyPath returns the path to put on the clipboard: the evaluated target path
-// of the current document (relative to the project root, or absolute), or the
+// of the current document (relative to the office folder, or absolute), or the
 // path of the document filed last when nothing is open.
 func (p *Sort) CopyPath(abs bool) (string, bool) {
 	rel, ok := p.PathPreview()
@@ -335,7 +337,7 @@ func (p *Sort) CopyPath(abs bool) (string, bool) {
 	if abs {
 		return filepath.Join(p.filer.Root, filepath.FromSlash(rel)), true
 	}
-	return rel, true
+	return domain.OfficeRel(rel), true
 }
 
 // RevealPath is the file to show in Finder: the current inbox file.
@@ -354,11 +356,91 @@ func (p *Sort) Remove() error {
 	if err := inbox.Trash(cur.Path); err != nil {
 		return err
 	}
+	p.leave(cur) // the file is gone: the queue forgets its origin
+	return nil
+}
+
+// CanPutBack reports whether the current document has an origin to go back to.
+// A document that was already in the inbox has none; it can only be deleted.
+func (p *Sort) CanPutBack() bool {
+	_, ok := p.queue.Origin(p.current)
+	return ok
+}
+
+// PutBack moves the current document back to its origin and drops it from the
+// queue. For a document sent here by "sort again" the origin is its library
+// path, so the library entry stays valid. It fails when there is no origin or
+// the origin is occupied; the document then stays. Call it from a goroutine.
+func (p *Sort) PutBack() error {
+	cur, ok := p.Current()
+	if !ok {
+		return errors.New(p.T("error.sort.nothing"))
+	}
+	if _, err := p.queue.PutBack(cur.ID); err != nil {
+		if errors.Is(err, inbox.ErrNoOrigin) {
+			return errors.New(p.T("error.sort.noorigin"))
+		}
+		return err
+	}
+	p.leave(cur)
+	return nil
+}
+
+// CanAdoptInPlace reports whether the current document came from inside the
+// project folder, so AdoptInPlace may put it back and record it.
+func (p *Sort) CanAdoptInPlace() bool {
+	origin, ok := p.queue.Origin(p.current)
+	return ok && p.insideProject(origin)
+}
+
+func (p *Sort) insideProject(abs string) bool {
+	root, err := filepath.Abs(p.filer.Root)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(root, abs)
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// AdoptInPlace puts the current document back where it came from (no renaming)
+// and records a library entry with the selected type and the date, invoice and
+// amount of the form. The type and the date are required; the path template is
+// not evaluated. It opens the next document and returns the entry. Adopting is
+// not on the undo stack. Call it from a goroutine.
+func (p *Sort) AdoptInPlace(ctx context.Context) (domain.LibraryEntry, error) {
+	cur, ok := p.Current()
+	if !ok {
+		return domain.LibraryEntry{}, errors.New(p.T("error.sort.nothing"))
+	}
+	origin, has := p.queue.Origin(cur.ID)
+	if !has || !p.insideProject(origin) {
+		return domain.LibraryEntry{}, errors.New(p.T("error.sort.noorigin"))
+	}
+	typ, tok := p.selectedType()
+	if !tok || p.form.Date.IsZero() {
+		return domain.LibraryEntry{}, errors.New(p.T("error.sort.adoptincomplete"))
+	}
+	sum, err := inbox.FileHash(cur.Path)
+	if err != nil {
+		return domain.LibraryEntry{}, err
+	}
+	res, hasRes := p.result(cur.ID)
+	e, err := p.filer.Adopt(ctx, inbox.AdoptRequest{Path: cur.Path, Origin: origin, Type: typ, Values: p.values(), SHA256: sum, TextHash: res.TextHash, Text: res.Text, Overrides: p.overrides()})
+	if err != nil {
+		return domain.LibraryEntry{}, err
+	}
+	p.correction(inbox.NewCorrection(res, hasRes, typ.ID, p.values(), sum, e.FiledAt, p.overrides()))
+	p.leave(cur)
+	p.last = &e // after leave: opening an item clears it
+	return e, nil
+}
+
+// leave drops a document that left the inbox and opens the next one.
+func (p *Sort) leave(cur inbox.Item) {
 	p.queue.Remove(cur.ID)
 	p.forgetPreview(cur.Path)
 	p.current, p.form = "", Form{Text: map[string]string{}}
 	p.Step(0)
-	return nil
 }
 
 // Count is the number of documents in the queue.

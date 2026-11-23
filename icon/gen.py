@@ -104,6 +104,90 @@ def svg(motif, texture):
         '</svg>')
 
 
-if __name__ == "__main__":
+def dots(n, r, dr):
+    out = []
+    for i in range(n):
+        a = math.radians(i * 360 / n)
+        rr = dr * (1 + .12 * math.sin(i * 2.7))  # beads differ slightly, like a worn die
+        out.append(f'<circle cx="{C + r*math.cos(a):.1f}" cy="{C + r*math.sin(a):.1f}" r="{rr:.1f}" stroke="none"/>')
+    return "".join(out)
+
+
+def dashes(n, r0, r1, sw):
+    return ticks(n, r0, r1, sw)
+
+
+def uneven_ring(r, sw, dx, dy):
+    """A ring whose inner edge is off-centre: thicker on one side, like uneven stamp pressure."""
+    ro, ri = r + sw / 2, r - sw / 2
+    return (f'<path stroke="none" fill-rule="evenodd" d="M{C - ro} {C}a{ro} {ro} 0 1 0 {2*ro} 0a{ro} {ro} 0 1 0 {-2*ro} 0z'
+            f'M{C + dx - ri} {C + dy}a{ri} {ri} 0 1 0 {2*ri} 0a{ri} {ri} 0 1 0 {-2*ri} 0z"/>')
+
+
+def arcs(r, sw, n, gap):
+    """Ring broken into n arcs; gap is the share of each segment left empty."""
+    seg = 2 * math.pi * r / n
+    return (f'<circle cx="{C}" cy="{C}" r="{r}" fill="none" stroke-width="{sw}" stroke-linecap="butt" '
+            f'stroke-dasharray="{seg * (1 - gap):.1f} {seg * gap:.1f}"/>')
+
+
+def stamp_svg(motif, strong):
+    """Stamp look: wobbly rough edges plus uneven ink coverage. strong=False for 32 px (no grain, mild wobble)."""
+    if strong:
+        filt = ('<filter id="ink" x="-5%" y="-5%" width="110%" height="110%">'
+                '<feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4" result="w"/>'
+                '<feDisplacementMap in="SourceGraphic" in2="w" scale="4" xChannelSelector="R" yChannelSelector="G" result="d1"/>'
+                '<feTurbulence type="fractalNoise" baseFrequency="0.6" numOctaves="2" seed="9" result="e"/>'
+                '<feDisplacementMap in="d1" in2="e" scale="5" xChannelSelector="R" yChannelSelector="G" result="d2"/>'
+                # coarse blotches (low frequency) decide how much ink is on a spot, fine grain punches the pits
+                '<feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="2" seed="21" result="b"/>'
+                '<feTurbulence type="fractalNoise" baseFrequency="0.45" numOctaves="2" seed="5" result="g"/>'
+                '<feComposite in="b" in2="g" operator="arithmetic" k1="0" k2="0.55" k3="0.45" k4="0" result="bg"/>'
+                '<feColorMatrix in="bg" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -10 0 0 0 6.6" result="m"/>'
+                '<feComposite in="d2" in2="m" operator="in"/></filter>')
+    else:
+        filt = ('<filter id="ink" x="-5%" y="-5%" width="110%" height="110%">'
+                '<feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4" result="w"/>'
+                '<feDisplacementMap in="SourceGraphic" in2="w" scale="8" xChannelSelector="R" yChannelSelector="G"/></filter>')
+    return svg(motif, False).replace('</defs>', filt + '</defs>', 1).replace(
+        'stroke-linecap="round">', 'stroke-linecap="round" filter="url(#ink)">', 1)
+
+
+def date_band():
+    return band(236, -62, 62, 216, 60, 88, 18, 84, 64)
+
+
+# v0.3 candidates (python3 gen.py --variants): the rich stamp of the old large icon, but only two concentric
+# motifs (heavy outer ring + one motif ring), fewer and bigger elements, more air. Each has a small variant.
+TEXT_LINES = [(-136, 220), (-102, 140), (90, 140), (124, 220)]
+WIDE_BAND = lambda: band(240, -70, 70, 222, 68, 108, 22, 90, 64)
+STD_BAND = lambda: band(222, -56, 56, 204, 60, 86, 17, 80, 60)
+
+VARIANTS = {
+    # A: tick ring inside, date plaque and text lines.
+    "a-strichring": (
+        lambda: ring(326, 32) + ticks(48, 252, 288, 11) + STD_BAND() + bars(TEXT_LINES),
+        lambda: ring(322, 62) + ticks(24, 232, 282, 22) + band(220, -70, 70, 204, 62, 94, 20, 88, 70)),
+    # B: tick ring, bigger date, no text lines.
+    "b-datum-gross": (
+        lambda: ring(326, 34) + ticks(40, 254, 296, 13) + WIDE_BAND(),
+        lambda: ring(322, 62) + ticks(24, 250, 296, 24) + band(240, -84, 84, 226, 70, 120, 22, 96, 70)),
+    # C: beads inside, date plaque and text lines.
+    "c-perlen": (
+        lambda: ring(326, 34) + dots(28, 264, 20) + STD_BAND() + bars(TEXT_LINES),
+        lambda: ring(322, 62) + dots(20, 258, 28) + band(220, -70, 70, 204, 62, 94, 20, 88, 70)),
+}
+
+
+def write_variants(out):
+    out.mkdir(parents=True, exist_ok=True)
+    for name, (large, small) in VARIANTS.items():
+        (out / f"icon-{name}.svg").write_text(svg(large(), True))
+        (out / f"icon-{name}-small.svg").write_text(svg(small(), False))
+
+
+if __name__ == "__main__" and "--variants" in __import__("sys").argv:
+    write_variants(OUT.parent / "prj" / "icons" / "v0.3")
+elif __name__ == "__main__":
     (OUT / "icon-large.svg").write_text(svg(large_motif(), True))
     (OUT / "icon-small.svg").write_text(svg(small_motif(), False))

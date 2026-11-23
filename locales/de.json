@@ -74,6 +74,8 @@
   "sort.remove.confirm": "In den Papierkorb",
   "toast.copied": "Kopiert: {{.Path}}",
   "error.sort.nothing": "Es ist kein Dokument geöffnet.",
+  "error.sort.noorigin": "Dieses Dokument hat keinen Ursprungsort, an den es zurück kann.",
+  "error.sort.adoptincomplete": "Zuerst Typ und Datum wählen.",
   "vim.mode.normal": "NORMAL",
   "vim.mode.insert": "INSERT",
   "cmd.sort.paste": "In Finder kopierte Dateien importieren",

@@ -28,3 +28,23 @@ Gaps, bugs and surprises found while building sanity. Newest first.
 - `widgets.Split` had no per-side minimum sizes and the leading side won when space ran short (fixed: `SetMinLeading`/`SetMinTrailing`).
 
 - Import dialog (types): `widgets.ShowCustom` has one close button and no way to add action buttons, so Save and Save and edit sit inside the content. A `ShowDialog(win, title, content, buttons...)` would be cleaner. `widgets.Label` does not wrap, so long finding messages run out of the dialog.
+
+## 2026-11-23 (v0.2.0, wave 1)
+
+- Fyne's `Entry` word/line navigation (Alt/Ctrl/Cmd+arrows, word delete) are `desktop.CustomShortcut`s. The kit's `Entry.TypedShortcut` forwarded every custom shortcut to the canvas, so they never reached the field (fixed for `Entry`/`TextArea` via `textnav.go`). `numberField` and `comboEntry` in `widgets/shortcut.go` still forward them. The test canvas has no shortcut sink, so tests do not show this; only the real window does.
+- `selectToLineEdge` (Cmd+Shift+Left/Right) replays Fyne key handling because the selection fields are private. A held Shift can reset `selectKeyDown`, so a directly following Shift+arrow selection needs a new Shift press.
+- `LabelMono` is text-coloured. A muted mono style (`LabelMonoMuted`) is missing; the palette draws `canvas.Text` directly in `shell`.
+- The shell rebuilds the `StatusBar` in `build()` (language change, `SetPages`). Use `Shell.SetFooterTrailing`; a direct `Status.SetTrailing` replaces the version label until the next `build()`.
+- `StatusBar.SetTrailing` has no overflow protection: below the sum of the minimum sizes the `SetRight` texts overlap the trailing objects.
+- Fyne has no height-for-width layout: `Label.MinSize().Height` depends on its current width. `ShowDialog` sets the content to its final width before measuring; a wrapping label in an `HBox` never wraps.
+- `widgets.ShowDialog` has no height limit. A big text area inside it has to scroll by itself.
+- The menu inset (`menuInset = 4`) is a size literal without a theme token.
+- `date.candidates.hint` was extended with Ctrl+J/K; the `DateEntry` highlight is not refreshed by a calendar pick until the next key.
+- The `docs/screenshots/demo_invoices_contextmenu_*` screenshot shows the old menu padding; regenerate before the next release.
+
+## 2026-11-23 (v0.2.0, sanity findings)
+
+- Undo (`Undo`, `UndoBatch`) of a filing forgets the origin because `File` drops it when it removes the item from the queue; the document is then in the inbox but cannot be put back.
+- Origins are absolute paths: after moving the project folder "put back" targets the old directory and `AdoptInPlace` refuses such documents.
+- `fmt.Sprintf("%d.%02d", c/100, c%100)` is duplicated in `inbox/corrections.go` (`FormatAmount`), `ui/presenter/suggest.go` and `ui/presenter/sort_batch.go`; negative cents below 100 print garbage (`-50` becomes `0.-50`). `ParseAmount` (`library_ops.go`) does not know no-break-space grouping.
+- The leading dot in `.39000.00 EUR` could not be reproduced in `analysis.FindAmount`; needs the original line as synthetic text.

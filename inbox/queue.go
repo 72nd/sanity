@@ -28,6 +28,9 @@ type Item struct {
 	AddedAt time.Time
 	Status  Status
 	Err     string
+	// Origin is the absolute path the document was imported from ("" when it
+	// was already in the inbox folder). PutBack moves it back there.
+	Origin string
 }
 
 // Queue is the ordered set of inbox items. It is safe for concurrent use.
@@ -36,6 +39,9 @@ type Queue struct {
 	items    []*Item
 	onChange func()
 	now      func() time.Time
+
+	dir     string            // inbox folder, see SetDir; "" = Import does not move
+	origins map[string]string // see origins.go
 }
 
 // NewQueue creates an empty queue. onChange (may be nil) is called after every
@@ -45,9 +51,30 @@ func NewQueue(onChange func()) *Queue { return &Queue{onChange: onChange, now: t
 // IsPDF reports whether the path looks like a PDF file.
 func IsPDF(path string) bool { return strings.EqualFold(filepath.Ext(path), ".pdf") }
 
-// Add imports files and folders (recursively, PDFs only, hidden entries
-// skipped). Known paths are ignored. It returns the number of new items.
+// Add queues files and folders (recursively, PDFs only, hidden entries
+// skipped) where they are; it moves nothing (see Import). Known paths are
+// ignored. It returns the number of new items.
 func (q *Queue) Add(paths ...string) int {
+	found := collectPDFs(paths)
+	n := 0
+	q.mu.Lock()
+	for _, p := range found {
+		abs, err := filepath.Abs(p)
+		if err != nil || q.indexLocked(abs) >= 0 {
+			continue
+		}
+		q.items = append(q.items, q.newItemLocked(abs))
+		n++
+	}
+	q.mu.Unlock()
+	if n > 0 {
+		q.changed()
+	}
+	return n
+}
+
+// collectPDFs lists the PDFs of files and folders, sorted.
+func collectPDFs(paths []string) []string {
 	var found []string
 	for _, p := range paths {
 		st, err := os.Stat(p)
@@ -77,29 +104,20 @@ func (q *Queue) Add(paths ...string) int {
 		})
 	}
 	sort.Strings(found)
-	n := 0
-	q.mu.Lock()
-	for _, p := range found {
-		abs, err := filepath.Abs(p)
-		if err != nil || q.indexLocked(abs) >= 0 {
-			continue
-		}
-		q.items = append(q.items, &Item{ID: abs, Path: abs, Name: filepath.Base(abs), AddedAt: q.now()})
-		n++
-	}
-	q.mu.Unlock()
-	if n > 0 {
-		q.changed()
-	}
-	return n
+	return found
 }
 
-// Remove drops an item from the queue (the file is not touched).
+// Remove drops an item from the queue (the file is not touched). When the file
+// is gone (filed or trashed) its origin is forgotten.
 func (q *Queue) Remove(id string) bool {
 	q.mu.Lock()
 	i := q.indexLocked(id)
 	if i >= 0 {
+		it := q.items[i]
 		q.items = append(q.items[:i], q.items[i+1:]...)
+		if _, err := os.Stat(it.Path); err != nil {
+			q.forgetOriginLocked(it.Path)
+		}
 	}
 	q.mu.Unlock()
 	if i >= 0 {
@@ -164,6 +182,7 @@ func (q *Queue) Prune() int {
 	for _, it := range q.items {
 		if _, err := os.Stat(it.Path); err != nil {
 			n++
+			q.forgetOriginLocked(it.Path)
 			continue
 		}
 		kept = append(kept, it)

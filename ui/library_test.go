@@ -118,7 +118,7 @@ func TestLibraryCopyPathsToClipboard(t *testing.T) {
 		t.Fatal("command missing")
 	}
 	abs := strings.Split(*e.clip, "\n")
-	if len(abs) != 2 || abs[0] != filepath.Join(e.root, lines[0]) {
+	if len(abs) != 2 || abs[0] != filepath.Join(e.root, strings.TrimPrefix(lines[0], "../")) {
 		t.Errorf("absolute copy = %q", *e.clip)
 	}
 }
@@ -185,11 +185,11 @@ func TestLibraryNavigation(t *testing.T) {
 	}
 	rows := e.lib.Visible("")
 	e.typeRunes("yy")
-	if *e.clip != rows[len(rows)-1].Entry.Path {
-		t.Errorf("G then yy copied %q, want the last row %q", *e.clip, rows[len(rows)-1].Entry.Path)
+	if want := domain.OfficeRel(rows[len(rows)-1].Entry.Path); *e.clip != want {
+		t.Errorf("G then yy copied %q, want the last row %q", *e.clip, want)
 	}
 	e.typeRunes("ggyy")
-	if *e.clip != rows[0].Entry.Path {
+	if *e.clip != domain.OfficeRel(rows[0].Entry.Path) {
 		t.Errorf("gg then yy copied %q", *e.clip)
 	}
 	e.typeRunes("Vyy")

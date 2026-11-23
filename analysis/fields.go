@@ -70,7 +70,10 @@ func FindInvoice(text string, override string) []Found {
 }
 
 var (
-	reMoney     = regexp.MustCompile(`-?\d{1,3}(?:[.,'’]\d{3})*[.,]\d{2}|-?\d+[.,]\d{2}`)
+	// Grouping marks: . , ' ’ and the narrow spaces some statements use
+	// (NBSP, thin space, narrow NBSP). A plain space is no grouping mark: in
+	// table text "3 100,00" is a quantity next to a price.
+	reMoney     = regexp.MustCompile(`-?\d{1,3}(?:[.,'’\x{a0}\x{2009}\x{202f}]\d{3})*[.,]\d{2}|-?\d+[.,]\d{2}`)
 	reCurAfter  = regexp.MustCompile(`(?i)^[ ]{0,2}(€|EUR\b|CHF\b|USD\b|\$|GBP\b|£|Fr\.|SFr\.)`)
 	reCurBefore = regexp.MustCompile(`(?i)(€|\bEUR|\bCHF|\bUSD|\$|\bGBP|£|\bSFr\.|\bFr\.)[ ]{0,2}$`)
 )
@@ -224,7 +227,7 @@ func parseMoney(raw string) (int64, bool) {
 	if len(intPart) > 1 && intPart[0] == '0' && isDigit(intPart[1]) {
 		return 0, false
 	}
-	for _, g := range []string{".", ",", "'", "’", " "} {
+	for _, g := range []string{".", ",", "'", "’", " ", "\u00a0", "\u2009", "\u202f"} {
 		intPart = strings.ReplaceAll(intPart, g, "")
 	}
 	v, err := strconv.ParseInt(intPart+raw[i+1:], 10, 64)

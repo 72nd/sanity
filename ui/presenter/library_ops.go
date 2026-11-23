@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/72nd/sanity/domain"
 )
 
 // matches reports whether the row contains q (already lower case and trimmed).
@@ -41,15 +43,15 @@ func (p *Library) AbsPath(r Row) string {
 	return filepath.Join(p.root, filepath.FromSlash(r.Entry.Path))
 }
 
-// CopyPaths returns the paths of rows, one per line: relative to the project
-// root with "/", or absolute.
+// CopyPaths returns the paths of rows, one per line: relative to the office
+// folder with "/" (domain.OfficeRel), or absolute.
 func (p *Library) CopyPaths(rows []Row, abs bool) string {
 	lines := make([]string, 0, len(rows))
 	for _, r := range rows {
 		if abs {
 			lines = append(lines, p.AbsPath(r))
 		} else {
-			lines = append(lines, r.Entry.Path)
+			lines = append(lines, domain.OfficeRel(r.Entry.Path))
 		}
 	}
 	return strings.Join(lines, "\n")
@@ -84,8 +86,11 @@ func (p *Library) Remove(ctx context.Context, rows []Row) (int, error) {
 }
 
 // Resort sends the filed documents of rows back to the sort flow: it calls
-// ImportFn with their absolute paths and returns them. Filing a document again
-// moves and renames it; the old library entry stays until then.
+// ImportFn with their absolute paths and returns them. The import moves each
+// file into the inbox and remembers its library path as the origin, so
+// "put back" in the sort screen returns it there and the entry stays valid.
+// Filing a document again moves and renames it; the old library entry stays
+// until then.
 func (p *Library) Resort(rows []Row) []string {
 	paths := make([]string, 0, len(rows))
 	for _, r := range rows {

@@ -64,8 +64,13 @@ func openServices(root string, demo bool, act *ui.SortActions) (*services, error
 		inboxRel = domain.DefaultInbox
 	}
 
-	q := inbox.NewQueue(nil)
-	stop, err := inbox.Watch(q, filepath.Join(root, filepath.FromSlash(inboxRel)), 400*time.Millisecond)
+	inboxDir := filepath.Join(root, filepath.FromSlash(inboxRel))
+	q, err := inbox.OpenQueue(inboxDir, nil)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	stop, err := inbox.Watch(q, inboxDir, 400*time.Millisecond)
 	if err != nil {
 		cancel()
 		return nil, err

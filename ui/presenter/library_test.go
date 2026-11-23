@@ -121,7 +121,7 @@ func TestCopyPathsAndReveal(t *testing.T) {
 	rows := p.Visible("")[:2]
 	rel := p.CopyPaths(rows, false)
 	lines := strings.Split(rel, "\n")
-	if len(lines) != 2 || lines[0] != rows[0].Entry.Path || strings.Contains(rel, "/Users/") {
+	if len(lines) != 2 || lines[0] != domain.OfficeRel(rows[0].Entry.Path) || !strings.HasPrefix(lines[0], "../") || strings.Contains(rel, "/Users/") {
 		t.Errorf("relative = %q", rel)
 	}
 	abs := strings.Split(p.CopyPaths(rows, true), "\n")

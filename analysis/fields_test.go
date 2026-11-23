@@ -1,6 +1,9 @@
 package analysis
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestFindInvoice(t *testing.T) {
 	cases := []struct{ name, text, override, want string }{
@@ -113,5 +116,40 @@ func TestVATIDs(t *testing.T) {
 func TestAmountLeadingZeros(t *testing.T) {
 	if got := FindAmount("DE 000007.00"); len(got) != 0 {
 		t.Errorf("zero padded code is no amount: %v", got)
+	}
+}
+
+// Statement-like synthetic text: stray punctuation before the amount and
+// grouping marks of several kinds must not change the parsed value.
+func TestFindAmountPunctuationAndGrouping(t *testing.T) {
+	cases := []struct {
+		name, text string
+		cents      int64
+	}{
+		{"leading dot", "Kontostand neu .39000.00 EUR", 3900000},
+		{"leading dot de", "Kontostand neu .39.000,00 EUR", 3900000},
+		{"leading comma", "Saldo ,39000.00 EUR", 3900000},
+		{"leading plus", "Saldo +39.000,00 EUR", 3900000},
+		{"bullet", "Saldo • 39.000,00 EUR", 3900000},
+		{"dot after label", "Saldo:.39.000,00 EUR", 3900000},
+		{"double grouping dot", "Saldo 39.000.00 EUR", 3900000},
+		{"nbsp grouping", "Endsumme 39 500,00 EUR", 3950000},
+		{"narrow nbsp grouping", "Endsumme 1 234,56 EUR", 123456},
+		{"thin space grouping", "Endsumme 1 234,56 EUR", 123456},
+		{"negative", "Soll -39.000,00 EUR", -3900000},
+	}
+	for _, c := range cases {
+		got := FindAmount(c.text)
+		if len(got) == 0 || got[0].Cents != c.cents || got[0].Currency != "EUR" {
+			t.Errorf("%s: got %+v want %d EUR", c.name, got, c.cents)
+			continue
+		}
+		if strings.ContainsAny(got[0].Raw[:1], ".,+") {
+			t.Errorf("%s: raw %q starts with punctuation", c.name, got[0].Raw)
+		}
+	}
+	// a plain space is no grouping mark: quantity next to a price
+	if got := FindAmount("Menge 3 100,00 EUR"); len(got) == 0 || got[0].Cents != 10000 {
+		t.Errorf("space must not group: %+v", got)
 	}
 }
