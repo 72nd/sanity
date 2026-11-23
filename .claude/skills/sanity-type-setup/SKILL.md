@@ -40,3 +40,9 @@ You only configure; sanity never calls an LLM while sorting.
 - Text is compared lower-cased; regexes use `(?i)` and Go (RE2) syntax; IBAN and VAT ID are compared without spaces.
 - Path template placeholders: `{date:<Go layout>}` (`2006-01-02`), `{type}`, `{invoice}`, `{amount}`, `{original}`,
   `{text:<label>}`. No leading `/`, no `..`.
+- Optional type fields: `amount.preferredLabels` (e.g. `["Betrag"]`), `currency` (`EUR`/`CHF`/`USD`/`GBP`, for amounts
+  printed without a sign) and `statement: true` for a bank or card statement.
+- A statement type gets the latest date of the month named most often in the document.
+- Documents with a project-wide statement keyword are classified as statement types only, so no `not` rule against
+  "Kontoauszug" is needed on other types.
+- `types check` reports the suggested `Date` and `Amount` per sample.
