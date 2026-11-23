@@ -32,6 +32,8 @@ type sortPanel struct {
 	dup        *widgets.Callout
 	dupEntry   domain.LibraryEntry
 	fileBtn    *widgets.Button
+	adoptBtn   *widgets.Button
+	inProject  *widgets.StatusBadge
 	skipBtn    *widgets.Button
 	moreBtn    *widgets.Button
 	rowMissing fyne.CanvasObject
@@ -55,9 +57,10 @@ type sortPanel struct {
 	footBatch     fyne.CanvasObject
 }
 
-// badgeRow is a status badge with a text that takes the remaining width.
+// badgeRow is a status badge with a text that takes the remaining width. The
+// text is vertically centered to the badge.
 func badgeRow(b fyne.CanvasObject, text *widgets.Label) fyne.CanvasObject {
-	return widgets.Border(nil, nil, b, nil, text)
+	return widgets.Border(nil, nil, b, nil, widgets.VBox(widgets.Spacer(), text, widgets.Spacer()))
 }
 
 // vgap is an empty block of the given height, used as spacing inside a VBox.
@@ -76,7 +79,10 @@ func newSortPanel(p *presenter.Sort, act *SortActions, w *sortWidgets, textBox f
 	s.title = widgets.NewWrapLabel("", widgets.LabelBody)
 	s.title.Bold = true
 	s.position = widgets.NewLabel("", widgets.LabelMuted)
-	header := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, pad, widgets.VBox(s.title, s.position))
+	s.inProject = widgets.NewStatusBadge(theme.StatusInfo, i18n.T("sort.inproject"))
+	s.inProject.Hide()
+	header := widgets.NewPanel(theme.SurfaceRaised, widgets.EdgeBottom, pad,
+		widgets.VBox(s.title, widgets.HBox(s.position, s.inProject)))
 
 	// single form
 	s.dup = widgets.NewCallout(theme.StatusWarning, "", widgets.NewButton(i18n.T("sort.duplicate.show"),
@@ -113,6 +119,8 @@ func newSortPanel(p *presenter.Sort, act *SortActions, w *sortWidgets, textBox f
 		widgets.NewWrapLabel(i18n.T("sort.hint.file"), widgets.LabelMuted))
 	s.pathLabel = widgets.NewWrapLabel("", widgets.LabelMono)
 	s.fileBtn = widgets.NewButton(i18n.T("sort.file"), widgets.ButtonPrimary, func() { act.File() })
+	s.adoptBtn = widgets.NewButton(i18n.T("sort.adopt"), widgets.ButtonPrimary, func() { act.AdoptInPlace() })
+	s.adoptBtn.Hide()
 	s.skipBtn = widgets.NewButton(i18n.T("sort.skip"), widgets.ButtonSecondary, func() { act.Skip() })
 	s.moreBtn = widgets.NewButton("", widgets.ButtonSecondary, nil)
 	s.moreBtn.SetIcon(fynetheme.IconNameMoreVertical)
@@ -120,7 +128,7 @@ func newSortPanel(p *presenter.Sort, act *SortActions, w *sortWidgets, textBox f
 		pos := fyne.CurrentApp().Driver().AbsolutePositionForObject(s.moreBtn)
 		widgets.ShowContextMenu(s.moreBtn, fyne.NewPos(pos.X, pos.Y+s.moreBtn.Size().Height), s.moreItems())
 	}
-	actions := widgets.Border(nil, nil, nil, widgets.HBox(s.skipBtn, s.moreBtn), s.fileBtn)
+	actions := widgets.Border(nil, nil, nil, widgets.HBox(s.skipBtn, s.moreBtn), widgets.VBox(s.fileBtn, s.adoptBtn))
 	s.footOne = widgets.VBox(s.rowMissing, s.rowNoType, s.rowReady, s.pathLabel, actions)
 
 	// footer, batch
@@ -139,16 +147,23 @@ func newSortPanel(p *presenter.Sort, act *SortActions, w *sortWidgets, textBox f
 }
 
 // moreItems are the entries of the "more" menu; they read the state when the
-// menu opens.
+// menu opens. A document that already lies in the project folder has "Adopt in
+// place" as its main action, so "File" moves into the menu instead.
 func (s *sortPanel) moreItems() []widgets.MenuItem {
-	return []widgets.MenuItem{
+	items := []widgets.MenuItem{
 		{Label: i18n.T("sort.learn"), Icon: fynetheme.IconNameDocumentCreate, Action: func() { s.act.LearnRules() }},
 		widgets.MenuSeparator(),
-		{Label: i18n.T("sort.putback"), Icon: fynetheme.IconNameHistory, Disabled: !s.p.CanPutBack(), Action: func() { s.act.PutBack() }},
-		{Label: i18n.T("sort.adopt"), Icon: fynetheme.IconNameConfirm, Disabled: !s.p.CanAdoptInPlace(), Action: func() { s.act.AdoptInPlace() }},
-		widgets.MenuSeparator(),
-		{Label: i18n.T("sort.delete"), Icon: fynetheme.IconNameDelete, Danger: true, Action: func() { s.act.Remove() }},
 	}
+	if s.p.CanAdoptInPlace() {
+		_, ready := s.p.PathPreview()
+		items = append(items, widgets.MenuItem{Label: i18n.T("sort.file"), Icon: fynetheme.IconNameMoveDown, Disabled: !ready, Action: func() { s.act.File() }})
+	}
+	items = append(items,
+		widgets.MenuItem{Label: i18n.T("sort.putback"), Icon: fynetheme.IconNameHistory, Disabled: !s.p.CanPutBack(), Action: func() { s.act.PutBack() }},
+		widgets.MenuSeparator(),
+		widgets.MenuItem{Label: i18n.T("sort.delete"), Icon: fynetheme.IconNameDelete, Danger: true, Action: func() { s.act.Remove() }},
+	)
+	return items
 }
 
 func setShown(o fyne.CanvasObject, on bool) {
@@ -170,6 +185,7 @@ func setEnabled(b *widgets.Button, on bool) {
 // refreshHeader shows the document name and its place in the queue (or the
 // batch size).
 func (s *sortPanel) refreshHeader() {
+	s.inProject.Hide()
 	if s.p.BatchActive() {
 		s.title.SetText(i18n.T("sort.batch.title", "Count", strconv.Itoa(len(s.p.Selection()))))
 		s.position.SetText("")
@@ -185,6 +201,7 @@ func (s *sortPanel) refreshHeader() {
 		return
 	}
 	s.title.SetText(cur.Name)
+	setShown(s.inProject, s.p.CanAdoptInPlace())
 	items := s.p.Items()
 	for i, it := range items {
 		if it.ID == cur.ID {
@@ -208,6 +225,10 @@ func (s *sortPanel) refreshSingle() {
 	}
 	s.missing.SetText(joinComma(s.p.MissingLabels()))
 	setEnabled(s.fileBtn, ready)
+	inProj := s.p.CanAdoptInPlace()
+	setShown(s.fileBtn, !inProj)
+	setShown(s.adoptBtn, inProj)
+	setEnabled(s.adoptBtn, s.p.CanAdopt())
 	if e, why, ok := s.p.Duplicate(); ok {
 		s.dupEntry = e
 		s.dup.SetText(i18n.T("sort.duplicate", "Path", e.Path, "Reason", s.p.DuplicateReasonText(why)))

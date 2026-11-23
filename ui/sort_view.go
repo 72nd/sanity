@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"io"
 	"reflect"
 	"strconv"
 	"strings"
@@ -25,9 +24,17 @@ import (
 // clipboardFiles reads the files Finder copied; tests replace it.
 var clipboardFiles = clipboard.FilePaths
 
-func queueColumns() []grid.Column[inbox.Item] {
+// queueColumns marks items that already lie in the project folder with a
+// folder icon.
+func queueColumns(inProject func(inbox.Item) bool) []grid.Column[inbox.Item] {
 	return []grid.Column[inbox.Item]{
 		{ID: "name", Title: i18n.T("col.file"), Width: 220,
+			Icon: func(it inbox.Item) fyne.ThemeIconName {
+				if inProject(it) {
+					return fynetheme.IconNameFolder
+				}
+				return ""
+			},
 			Value: func(it inbox.Item) string { return it.Name },
 			Less:  func(a, b inbox.Item) bool { return a.Name < b.Name }},
 	}
@@ -53,7 +60,7 @@ type sortWidgets struct {
 // SortPage builds the work screen: queue, PDF preview and the sort form.
 func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActions) fyne.CanvasObject {
 	w := &sortWidgets{
-		queue:   grid.New(queueColumns()),
+		queue:   grid.New(queueColumns(p.InProject)),
 		preview: widgets.NewImageView(),
 		picker:  widgets.NewPicker(nil),
 		date:    widgets.NewDateEntry(),
@@ -283,6 +290,11 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		loadPreview()
 		items := p.Items()
 		w.queue.SetItems(items)
+		if ok && !p.BatchActive() { // the open document is the marked row, also after a restart
+			if keys := w.queue.SelectedKeys(); len(keys) != 1 || keys[0] != cur.ID {
+				w.queue.SelectKeys([]string{cur.ID})
+			}
+		}
 		sh.Status.SetRight(i18n.T("sort.status.open", "Count", strconv.Itoa(len(items))))
 		if ok {
 			act.SetMode(false)
@@ -544,9 +556,8 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		}()
 	}
 	act.AddFiles = func() {
-		widgets.ShowFileOpen(sh.Win, widgets.FileDialogOptions{Extensions: []string{".pdf"}}, func(r io.ReadCloser, path string) {
-			r.Close()
-			act.Import(path)
+		widgets.ShowFilesOpen(sh.Win, widgets.FileDialogOptions{Extensions: []string{".pdf"}}, func(paths []string) {
+			act.Import(paths...)
 		})
 	}
 	act.ZoomIn, act.ZoomOut, act.ZoomFit = w.preview.ZoomIn, w.preview.ZoomOut, w.preview.FitWidth

@@ -2,10 +2,12 @@ package ui
 
 import (
 	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/72nd/fine/shell/i18n"
 	"github.com/72nd/sanity/domain"
 	"github.com/72nd/sanity/inbox"
 	"github.com/72nd/sanity/pdf"
@@ -75,7 +77,6 @@ func TestSortPanelMoreMenuActions(t *testing.T) {
 	got := map[string]int{}
 	act := lastAct
 	act.PutBack = func() { got["putback"]++ }
-	act.AdoptInPlace = func() { got["adopt"]++ }
 	act.Remove = func() { got["remove"]++ }
 	act.LearnRules = func() { got["learn"]++ }
 	items := act.fields.panel.moreItems()
@@ -87,10 +88,10 @@ func TestSortPanelMoreMenuActions(t *testing.T) {
 		n++
 		it.Action()
 	}
-	if n != 4 {
-		t.Fatalf("%d menu actions, want 4", n)
+	if n != 3 {
+		t.Fatalf("%d menu actions, want 3 (Adopt and File are no menu entries here)", n)
 	}
-	for _, k := range []string{"putback", "adopt", "remove", "learn"} {
+	for _, k := range []string{"putback", "remove", "learn"} {
 		if got[k] != 1 {
 			t.Errorf("%s called %d times", k, got[k])
 		}
@@ -98,5 +99,36 @@ func TestSortPanelMoreMenuActions(t *testing.T) {
 	last := items[len(items)-1]
 	if !last.Danger || last.Icon == "" {
 		t.Error("delete entry must be danger with an icon")
+	}
+}
+
+// A document from inside the project gets "Adopt in place" as its main button
+// and a marked queue row; "File" moves into the more menu.
+func TestSortPanelInProjectDocument(t *testing.T) {
+	sh, sp, root := importShell(t)
+	sh.Show("sort")
+	settle()
+	pnl := lastAct.fields.panel
+	lastAct.Import(writePDF(t, filepath.Join(t.TempDir(), "o.pdf")))
+	settle()
+	if pnl.adoptBtn.Visible() || !pnl.fileBtn.Visible() || pnl.inProject.Visible() {
+		t.Error("outside document: File is the main button, no hint")
+	}
+	inside := writePDF(t, filepath.Join(root, "docs", "i.pdf"))
+	lastAct.Import(inside)
+	settle()
+	if !pnl.adoptBtn.Visible() || pnl.fileBtn.Visible() || !pnl.inProject.Visible() {
+		t.Error("inside document: Adopt is the main button with a hint")
+	}
+	hasFile := false
+	for _, it := range pnl.moreItems() {
+		hasFile = hasFile || it.Label == i18n.T("sort.file")
+	}
+	if !hasFile {
+		t.Error("File must be in the more menu for an inside document")
+	}
+	cur, _ := sp.Current()
+	if !sp.InProject(cur) {
+		t.Error("queue item must be marked as in the project")
 	}
 }

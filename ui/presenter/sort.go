@@ -414,6 +414,18 @@ func (p *Sort) CanAdoptInPlace() bool {
 	return ok && p.insideProject(origin)
 }
 
+// InProject reports whether the item came from inside the project folder, so
+// the queue can mark it.
+func (p *Sort) InProject(it inbox.Item) bool {
+	return it.Origin != "" && p.insideProject(it.Origin)
+}
+
+// CanAdopt reports whether the form holds what AdoptInPlace needs (type and date).
+func (p *Sort) CanAdopt() bool {
+	_, ok := p.selectedType()
+	return ok && !p.form.Date.IsZero()
+}
+
 func (p *Sort) insideProject(abs string) bool {
 	root, err := filepath.Abs(p.filer.Root)
 	if err != nil {
