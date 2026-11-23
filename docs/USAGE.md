@@ -408,6 +408,14 @@ text of each document). Until a type has three filed documents, its learned scor
 so one example alone does not produce a confident suggestion without a rule. The learned data is kept
 in the cache file of the project (`office/.sanity/cache.json`), which can be rebuilt from the PDFs.
 
+## Scans and OCR
+
+Scanned pages are read with Vision at render scale 1.4 (about 100 dpi). The value was measured on four
+scans against their clean originals: word recall 90 to 100 %, where 1.0 lost most of a faint scan and 2.0
+was worse on a Tesseract-processed one. A good embedded text layer is only replaced by OCR text that is at
+least 20 % longer. Misread date and invoice labels (`INVOIGE DAIE`) are repaired before extraction.
+`go run ./cmd/ocrdump -file x.pdf -ref original.pdf -sweep` repeats the measurement for your own scans.
+
 ## Privacy
 
 - sanity runs entirely on your Mac. It has no network code. PDF rendering, text extraction, OCR
