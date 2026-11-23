@@ -21,6 +21,19 @@ type Translator func(id string, kv ...any) string
 type Row struct {
 	Entry    domain.LibraryEntry
 	TypeName string
+
+	// amount caches AmountValue(Entry.Amount) for sorting and filtering;
+	// parsed tells whether it was filled (rows built outside Load are not).
+	amount            float64
+	hasAmount, parsed bool
+}
+
+// Amount is the numeric amount of the row (see AmountValue), cached by Load.
+func (r Row) Amount() (float64, bool) {
+	if r.parsed {
+		return r.amount, r.hasAmount
+	}
+	return AmountValue(r.Entry.Amount)
 }
 
 // Library is the presenter of the library page.
@@ -61,7 +74,8 @@ func (p *Library) Load(ctx context.Context) error {
 	}
 	rows := make([]Row, 0, len(pr.Library))
 	for _, e := range pr.Library {
-		r := Row{Entry: e, TypeName: e.TypeID}
+		r := Row{Entry: e, TypeName: e.TypeID, parsed: true}
+		r.amount, r.hasAmount = AmountValue(e.Amount)
 		if t, ok := pr.TypeByID(e.TypeID); ok {
 			r.TypeName = t.Name
 		}

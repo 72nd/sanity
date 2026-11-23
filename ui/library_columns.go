@@ -45,7 +45,7 @@ func libraryColumns(p *presenter.Library) []grid.Column[presenter.Row] {
 			Less:  func(a, b presenter.Row) bool { return a.Entry.Invoice < b.Entry.Invoice }},
 		{ID: "amount", Title: i18n.T("col.amount"), Width: 110, Align: grid.AlignRight, Kind: grid.KindNumber,
 			Value:     func(r presenter.Row) string { return r.Entry.Amount },
-			Number:    func(r presenter.Row) (float64, bool) { return presenter.AmountValue(r.Entry.Amount) },
+			Number:    func(r presenter.Row) (float64, bool) { return r.Amount() },
 			Aggregate: func(rows []presenter.Row) string { return p.AmountSum(rows) },
 			Less:      func(a, b presenter.Row) bool { return p.AmountLess(a, b) }},
 		{ID: "filed", Title: i18n.T("col.filedAt"), Width: 150, Kind: grid.KindDate,

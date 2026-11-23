@@ -87,8 +87,8 @@ func (p *Library) ConditionsLabel(n int) string {
 // AmountLess orders rows by the numeric amount; rows without an amount come
 // first. Amounts of different currencies compare by number only.
 func (p *Library) AmountLess(a, b Row) bool {
-	va, oka := AmountValue(a.Entry.Amount)
-	vb, okb := AmountValue(b.Entry.Amount)
+	va, oka := a.Amount()
+	vb, okb := b.Amount()
 	if oka && okb {
 		return va < vb
 	}

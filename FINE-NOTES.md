@@ -2,6 +2,12 @@
 
 Gaps, bugs and surprises found while building sanity. Newest first.
 
+## 2026-11-23 (grid latency)
+
+- (Fixed in fine) Sorting and the filter funnel reacted only after 0.5 to 0.8 s with 20 rows. Not CPU: a profile of the real app showed 2 s CPU in 40 s. Fyne delays `Tapped` by the system double-click interval (`DoubleTapDelay`, 0.5 s on macOS by default) on every widget that also implements `DoubleTapped`, and `Grid` does (open a row). Header clicks now act in `MouseUp`; `Tapped` only covers drivers without mouse events. Any kit widget with both interfaces has the same trap.
+- Sorting the amount column parsed every amount on every comparison (about 50 to 170 ms for 3,000 rows); `presenter.Row` now caches the parsed amount from `Load`.
+- `SANITY_CPUPROFILE=<file>` (optional `SANITY_CPUPROFILE_SECS`, default 30) records a CPU profile of the running app (`profile.go`).
+
 ## 2026-11-23 (Sort side panel)
 
 - (Fixed in fine) `widgets.Picker`: after `SetItems` or a re-rank (typing, `Preselect`) some rows kept the width of an earlier layout (rows 3 to 5 were 148 px wide in a 294 px list), so labels were truncated. `pickerRenderer.Layout` now resizes every row to the box width (`fitRows`).
