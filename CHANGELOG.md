@@ -17,3 +17,5 @@
 - FIX: OCR default scale 1.5 (measured: lower scales recognise more); layer threshold `minLayerChars` 40
 - DOCS: README and user guide
 - CHORE: Changelog rules, keep local scan samples out of git
+
+## v0.2.0
