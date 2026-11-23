@@ -54,16 +54,20 @@ func TestImportDialogChecksAndSaves(t *testing.T) {
 	var saved string
 	d := newImportDialog(sh, tp, func(id string, andEdit bool) { saved = id })
 	d.show()
-	if !d.saveBtn.Disabled() {
+	if d.canSave {
 		t.Error("Save enabled before the check")
+	}
+	d.save(false) // the footer button before the check does nothing
+	if saved != "" {
+		t.Error("saved before the check")
 	}
 	d.snippet.SetText(importSnippet)
 	test.Tap(d.checkBtn)
-	waitFor(t, "check result", func() bool { return !d.saveBtn.Disabled() })
+	waitFor(t, "check result", func() bool { return d.canSave })
 	if !d.results.Visible() || len(d.findings.Objects) == 0 || d.rules.Len() != 2 {
 		t.Errorf("results visible %v findings %d rules %d", d.results.Visible(), len(d.findings.Objects), d.rules.Len())
 	}
-	test.Tap(d.saveEdit)
+	test.Tap(footerButton(t, sh, i18n.T("types.import.saveEdit")))
 	waitFor(t, "saved", func() bool { return saved != "" })
 	types, _ := st.Types(context.Background())
 	found := false
@@ -94,8 +98,76 @@ func TestImportDialogRejectsBrokenSnippet(t *testing.T) {
 	d.snippet.SetText("not json")
 	test.Tap(d.checkBtn)
 	waitFor(t, "error row", func() bool { return d.results.Visible() })
-	if !d.saveBtn.Disabled() || len(d.findings.Objects) != 1 {
-		t.Errorf("save disabled %v rows %d", d.saveBtn.Disabled(), len(d.findings.Objects))
+	if d.canSave || len(d.findings.Objects) != 1 {
+		t.Errorf("can save %v rows %d", d.canSave, len(d.findings.Objects))
+	}
+}
+
+// walkButtons collects the buttons below o.
+func walkButtons(t *testing.T, o fyne.CanvasObject, out *[]*widgets.Button) {
+	t.Helper()
+	if b, ok := o.(*widgets.Button); ok {
+		*out = append(*out, b)
+		return
+	}
+	switch v := o.(type) {
+	case *fyne.Container:
+		for _, c := range v.Objects {
+			walkButtons(t, c, out)
+		}
+	case fyne.Widget:
+		for _, c := range test.TempWidgetRenderer(t, v).Objects() {
+			walkButtons(t, c, out)
+		}
+	}
+}
+
+func footerButton(t *testing.T, sh *shell.Shell, label string) *widgets.Button {
+	t.Helper()
+	var all []*widgets.Button
+	walkButtons(t, sh.Win.Canvas().Overlays().Top(), &all)
+	for _, b := range all {
+		if b.Label == label {
+			return b
+		}
+	}
+	t.Fatalf("no footer button %q", label)
+	return nil
+}
+
+// The dialog footer holds Cancel, Save and edit, and Save; the content
+// follows the dialog width and Cancel closes without saving.
+func TestImportDialogFooter(t *testing.T) {
+	app := test.NewTempApp(t)
+	i18n.MustAddFiles(locales.FS, locales.Files...)
+	i18n.SetLanguage("en")
+	tp := presenter.NewTypes(store.NewFake(), i18n.T)
+	preload(t, tp)
+	if err := tp.Load(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	sh := shell.New(app, shell.Config{TitleKey: "app.title", Width: 1200, Height: 760,
+		Pages: []shell.Page{{ID: "types", TitleKey: "nav.types",
+			Build: func(*shell.Shell) fyne.CanvasObject { return widgets.VBox() }}}})
+	sh.Show("types")
+	var saved string
+	d := newImportDialog(sh, tp, func(id string, _ bool) { saved = id })
+	d.show()
+	for _, l := range []string{"types.import.cancel", "types.import.saveEdit", "types.import.save"} {
+		footerButton(t, sh, i18n.T(l))
+	}
+	if w := sh.Win.Canvas().Overlays().Top().Size().Width; w > 1200 {
+		t.Errorf("dialog width %v exceeds the window", w)
+	}
+	d.snippet.SetText(importSnippet)
+	test.Tap(d.checkBtn)
+	waitFor(t, "check result", func() bool { return d.canSave })
+	if d.dryBox.Visible() {
+		t.Error("dry run table shown without a sample")
+	}
+	test.Tap(footerButton(t, sh, i18n.T("types.import.cancel")))
+	if sh.Win.Canvas().Overlays().Top() != nil || saved != "" {
+		t.Errorf("Cancel left the dialog open or saved %q", saved)
 	}
 }
 

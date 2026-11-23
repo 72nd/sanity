@@ -17,6 +17,9 @@ import (
 	"github.com/72nd/sanity/ui/presenter"
 )
 
+// dateWrapWidth is the card width from which Source and Maximum age sit side by side.
+const dateWrapWidth = 560
+
 // typeColumns is the list of document types on the left.
 func typeColumns() []grid.Column[presenter.TypeRow] {
 	return []grid.Column[presenter.TypeRow]{
@@ -88,6 +91,7 @@ func ruleColumns(p *presenter.Types) []grid.Column[presenter.RuleRow] {
 type typesWidgets struct {
 	list  *grid.Grid[presenter.TypeRow]
 	rules *grid.Grid[presenter.RuleRow]
+	tpl   *widgets.Entry
 }
 
 // TypesPage builds the types editor: the list of types on the left, the
@@ -111,6 +115,7 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 	name := widgets.NewEntry()
 	nameRow := widgets.NewFormRow(i18n.T("types.name"), name)
 	tpl := widgets.NewEntry()
+	tpl.SetMono(true)
 	tpl.SetPlaceHolder("receipts/{date:2006}/{date:2006-01-02}_name_{invoice}.pdf")
 	tplRow := widgets.NewFormRow(i18n.T("types.template"), tpl)
 	badge := widgets.NewStatusBadge(theme.StatusSuccess, i18n.T("types.preview.ok"))
@@ -282,18 +287,14 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 	}
 	rules.OnEdited = func(*presenter.RuleRow, int) { refreshState() }
 
-	// Legend: a few lines of Go layout tokens.
-	items := p.Legend()
+	// Legend: one line each for year, month and day, so the numbers are not
+	// mixed up (2006 year, 01 month, 02 day).
 	var legendLines []fyne.CanvasObject
-	for i := 0; i < len(items); i += 4 {
-		line := ""
-		for _, it := range items[i:min(i+4, len(items))] {
-			if line != "" {
-				line += "   "
-			}
-			line += it.Token + " = " + it.Meaning + " (" + it.Example + ")"
+	for _, it := range p.Legend() {
+		if it.Token != "2006" && it.Token != "01" && it.Token != "02" {
+			continue
 		}
-		legendLines = append(legendLines, widgets.NewLabel(line, widgets.LabelSmall))
+		legendLines = append(legendLines, widgets.NewLabel(it.Token+" = "+it.Meaning+" ("+it.Example+")", widgets.LabelSmall))
 	}
 	legendBox := widgets.VBox(legendLines...)
 
@@ -455,9 +456,8 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 
 	basics := widgets.NewCard(i18n.T("types.card.basics"), "", widgets.VBox(
 		nameRow, tplRow,
-		widgets.HBox(badge, previewText),
-		legendBox,
-		widgets.HBox(chooseBtn),
+		widgets.Border(nil, nil, nil, widgets.VBox(chooseBtn),
+			widgets.VBox(widgets.HBox(badge, previewText), legendBox)),
 	))
 	recognition := widgets.NewCard(i18n.T("types.card.recognition"), i18n.T("types.card.recognition.desc"), widgets.VBox(
 		widgets.NewFormRow(i18n.T("types.threshold"), threshold),
@@ -468,8 +468,9 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 	dateCard := widgets.NewCard(i18n.T("types.card.date"), i18n.T("types.card.date.desc"), widgets.VBox(
 		widgets.NewFormRow(i18n.T("types.date.preferred"), preferred),
 		widgets.NewFormRow(i18n.T("types.date.ignored"), ignored),
-		widgets.NewFormRow(i18n.T("types.date.source"), source),
-		widgets.NewFormRow(i18n.T("types.date.maxage"), maxAge),
+		withWrap(dateWrapWidth, theme.Size(theme.SizePagePad),
+			widgets.NewFormRow(i18n.T("types.date.source"), source),
+			widgets.NewFormRow(i18n.T("types.date.maxage"), maxAge)),
 	))
 	body := widgets.Scroll(widgets.PagePadded(widgets.VBox(basics, recognition, dateCard)))
 	relayout = body.Refresh
@@ -498,5 +499,5 @@ func typesPage(sh *shell.Shell, p *presenter.Types) (fyne.CanvasObject, *typesWi
 			})
 		})
 	}
-	return split, &typesWidgets{list: list, rules: rules}
+	return split, &typesWidgets{list: list, rules: rules, tpl: tpl}
 }

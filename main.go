@@ -11,6 +11,7 @@ import (
 	"github.com/72nd/fine/shell"
 	"github.com/72nd/fine/shell/i18n"
 	"github.com/72nd/fine/theme"
+	"github.com/72nd/fine/widgets"
 	"github.com/72nd/sanity/locales"
 	"github.com/72nd/sanity/ui"
 	"github.com/72nd/sanity/ui/presenter"
@@ -24,25 +25,87 @@ type application struct {
 	keys    *presenter.Keys
 	recents *presenter.Recents
 	nav     *ui.ProjectNav
-	cur     *services
+	cur     *services // nil while the welcome page is shown
 	demo    bool
+}
+
+// shellPrefs forwards to the preferences of the shell, which exist only after
+// shell.New, while the welcome page (built inside New) already lists the
+// recent projects.
+type shellPrefs struct{ a *application }
+
+func (p shellPrefs) LoadJSON(key string, v any) bool {
+	return p.a.sh != nil && p.a.sh.Prefs.LoadJSON(key, v)
+}
+func (p shellPrefs) SaveJSON(key string, v any) {
+	if p.a.sh != nil {
+		p.a.sh.Prefs.SaveJSON(key, v)
+	}
 }
 
 // pages returns the navigation for the current services.
 func (a *application) pages() []shell.Page {
 	s := a.cur
+	if s == nil {
+		return []shell.Page{ui.WelcomePageEntry(appIcon(), a.nav)}
+	}
 	return append(ui.Pages(s.lib, s.sort, s.queue, a.act, a.keys, s.types), ui.ProjectPageEntry(s.project, a.nav))
 }
 
 // remember adds the open project to the recent list and shows its name in the
 // window title.
 func (a *application) remember() {
+	if a.cur == nil {
+		if a.sh != nil {
+			a.sh.Win.SetTitle(i18n.T("app.title"))
+		}
+		return
+	}
 	if !a.demo {
 		a.recents.Add(a.cur.Root, a.cur.Name)
 	}
 	if a.sh != nil {
 		a.sh.Win.SetTitle(a.cur.Name + " – " + i18n.T("app.title"))
 	}
+	a.updateToolbar()
+}
+
+// updateToolbar shows the project drop-down on the right of the toolbar, or
+// nothing on the welcome page.
+func (a *application) updateToolbar() {
+	if a.sh == nil || a.nav == nil || a.nav.Recents == nil {
+		return
+	}
+	if a.cur == nil {
+		a.sh.SetToolbarApp()
+		return
+	}
+	a.sh.SetToolbarApp(ui.ProjectMenu(a.sh, a.nav, a.cur.Root, a.cur.Name))
+}
+
+// showWelcome closes the open project and shows the welcome page. Unsaved
+// edits on the project page are discarded only on request. UI thread.
+func (a *application) showWelcome() {
+	if a.cur == nil {
+		return
+	}
+	do := func() {
+		a.cur.Close()
+		a.cur, a.demo = nil, false
+		a.remember()
+		a.sh.SetPages(a.pages())
+		a.sh.Show("welcome")
+	}
+	if a.nav.Dirty != nil && a.nav.Dirty() {
+		widgets.ShowConfirm(a.sh.Win, i18n.T("project.discard.title"), i18n.T("project.discard.message"),
+			i18n.T("project.discard"), true, func(yes bool) {
+				if yes {
+					do()
+				}
+			})
+		return
+	}
+	do()
 }
 
 // switchTo opens the project at root (creating it when it has none), stops
@@ -54,15 +117,17 @@ func (a *application) switchTo(root string) {
 		a.sh.Toasts.Notify(theme.StatusDanger, i18n.T("project.open.failed", "Reason", err.Error()), 5*time.Second)
 		return
 	}
-	a.cur.Close()
+	if a.cur != nil {
+		a.cur.Close()
+	}
 	a.cur, a.demo = next, false
 	a.remember()
 	a.sh.SetPages(a.pages())
 	a.sh.Show("library")
 }
 
-// main opens the project folder given as the first argument (default: the
-// current directory) or runs on sample data with -demo.
+// main opens the project folder given as the first argument or runs on
+// sample data with -demo. Without an argument it shows the welcome page.
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "corrections" {
 		os.Exit(runCorrections(os.Args[2:], os.Stdout, os.Stderr))
@@ -73,28 +138,35 @@ func main() {
 	i18n.MustAddFiles(locales.FS, locales.Files...)
 
 	a := &application{act: ui.NewSortActions(), keys: presenter.NewKeys(nil)}
+	a.recents = presenter.NewRecents(shellPrefs{a})
 	root := ""
 	if len(os.Args) > 1 && os.Args[1] == "-demo" {
 		root, _ = os.MkdirTemp("", "sanity-demo-")
 		a.demo = true
 	} else if len(os.Args) > 1 {
 		root = os.Args[1]
-	} else if wd, err := os.Getwd(); err == nil {
-		root = wd
 	}
-	s, err := openServices(root, a.demo, a.act)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "sanity:", err)
-		os.Exit(1)
+	if root != "" {
+		s, err := openServices(root, a.demo, a.act)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "sanity:", err)
+			os.Exit(1)
+		}
+		a.cur = s
 	}
-	a.cur = s
-	defer func() { a.cur.Close() }()
+	defer func() {
+		if a.cur != nil {
+			a.cur.Close()
+		}
+	}()
 
 	fyneApp := app.NewWithID("com.72nd.sanity")
 	fyneApp.SetIcon(appIcon())
 	a.nav = &ui.ProjectNav{
-		Switch: a.switchTo,
-		Dirty:  func() bool { return a.cur.project.Dirty() },
+		Recents:  a.recents,
+		Switch:   a.switchTo,
+		Dirty:    func() bool { return a.cur != nil && a.cur.project.Dirty() },
+		Overview: a.showWelcome,
 		Saved: func(inboxChanged bool) {
 			a.cur.Name = a.cur.project.Name()
 			a.remember()
@@ -109,9 +181,9 @@ func main() {
 		Width:    1280,
 		Height:   800,
 		Settings: []shell.SettingsSection{ui.VimSettings()},
+		Version:  Version,
 	})
-	a.recents = presenter.NewRecents(a.sh.Prefs)
-	a.nav.Recents = a.recents
+	a.sh.SetFooterTrailing(ui.ShortcutsButton(a.sh))
 	a.remember()
 	for _, c := range append(append(ui.Commands(a.act), ui.ProjectCommands(a.sh, a.nav)...), ui.TypesCommands(ui.SharedTypesActions().Attach(a.sh))...) {
 		if err := a.sh.Registry.Register(c); err != nil {
@@ -124,6 +196,9 @@ func main() {
 		}
 	}
 	a.sh.SetOnDropped(func(paths []string) { // dropped files are shown at once
+		if a.cur == nil { // the welcome page has no sort page
+			return
+		}
 		a.sh.Show("sort") // first: the page owns the import and may not be built yet
 		a.act.Import(paths...)
 	})

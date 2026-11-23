@@ -125,3 +125,38 @@ func TestServicesWireCorrectionLog(t *testing.T) {
 		t.Error("the demo must not write a log")
 	}
 }
+
+// Without a project the app shows the welcome page only; the overview row of
+// the project menu goes back to it, and a project opens from there.
+func TestWelcomeThenProjectThenOverview(t *testing.T) {
+	newEngine = func() pdf.Engine { return pdf.NewFake() }
+	t.Cleanup(func() { newEngine = pdf.NewEngine })
+	i18n.MustAddFiles(locales.FS, locales.Files...)
+	i18n.SetLanguage("en")
+	a := &application{act: ui.NewSortActions(), keys: presenter.NewKeys(nil)}
+	a.recents = presenter.NewRecents(shellPrefs{a})
+	a.nav = &ui.ProjectNav{Recents: a.recents, Switch: a.switchTo, Dirty: func() bool { return a.cur != nil && a.cur.project.Dirty() }, Overview: a.showWelcome}
+	a.sh = shell.New(test.NewTempApp(t), shell.Config{TitleKey: "app.title", Pages: a.pages(), Width: 1000, Height: 700, Version: Version})
+	a.remember()
+	if a.sh.Current() != "welcome" || len(a.pages()) != 1 {
+		t.Fatalf("start page = %q (%d pages)", a.sh.Current(), len(a.pages()))
+	}
+	if a.sh.Win.Title() != i18n.T("app.title") {
+		t.Errorf("title = %q", a.sh.Win.Title())
+	}
+
+	root := t.TempDir()
+	a.switchTo(root)
+	if a.cur == nil || a.sh.Current() != "library" {
+		t.Fatalf("project not shown: cur=%v page=%q", a.cur, a.sh.Current())
+	}
+	a.showWelcome()
+	if a.cur != nil || a.sh.Current() != "welcome" {
+		t.Errorf("overview: cur=%v page=%q", a.cur, a.sh.Current())
+	}
+	a.switchTo(root) // opens again from the welcome page
+	defer a.cur.Close()
+	if a.cur == nil || a.sh.Current() != "library" {
+		t.Errorf("reopen: page=%q", a.sh.Current())
+	}
+}

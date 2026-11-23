@@ -92,3 +92,52 @@ func (r *Recents) Remove(root string) {
 	list := slices.DeleteFunc(r.load(), func(p RecentProject) bool { return filepath.Clean(p.Root) == root })
 	r.prefs.SaveJSON(RecentsKey, list)
 }
+
+// MenuKind says what a row of the project menu does.
+type MenuKind int
+
+const (
+	MenuCurrent  MenuKind = iota // the open project (first row)
+	MenuRecent                   // another recent project: open Root
+	MenuOpen                     // choose a folder
+	MenuOverview                 // back to the welcome page
+)
+
+// MenuEntry is one row of the project menu in the toolbar.
+type MenuEntry struct {
+	Kind  MenuKind
+	Label string
+	Root  string // for MenuCurrent and MenuRecent
+}
+
+// Menu returns the rows of the project menu: the open project, the other
+// recent projects, then "open project" and "overview". Labels are unique:
+// projects with the same name get their folder appended.
+func (r *Recents) Menu(curRoot, curName string, t Translator) []MenuEntry {
+	curRoot = filepath.Clean(curRoot)
+	items := []RecentProject{{Root: curRoot, Name: curName}}
+	for _, p := range r.List() {
+		if filepath.Clean(p.Root) != curRoot {
+			items = append(items, p)
+		}
+	}
+	count := map[string]int{}
+	for _, p := range items {
+		count[p.Name]++
+	}
+	out := make([]MenuEntry, 0, len(items)+2)
+	for i, p := range items {
+		label := p.Name
+		if count[p.Name] > 1 {
+			label += "  (" + p.Root + ")"
+		}
+		kind := MenuRecent
+		if i == 0 {
+			kind = MenuCurrent
+		}
+		out = append(out, MenuEntry{Kind: kind, Label: label, Root: p.Root})
+	}
+	return append(out,
+		MenuEntry{Kind: MenuOpen, Label: t("project.menu.open")},
+		MenuEntry{Kind: MenuOverview, Label: t("project.menu.overview")})
+}

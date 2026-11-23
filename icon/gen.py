@@ -80,7 +80,8 @@ def small_motif():
     return "".join([ring(322, 64), band(268, -78, 78, 262, 62, 100, 20, 96, 100)])
 
 
-def svg(motif, texture):
+def svg(motif, texture, colors=None):
+    bg_top, bg_bottom, ink = colors or (BG_TOP, BG_BOTTOM, INK)
     ink_filter = ""
     if texture:  # speckles let the background through, like a real impression
         ink_filter = ('<filter id="ink" x="-5%" y="-5%" width="110%" height="110%">'
@@ -91,8 +92,8 @@ def svg(motif, texture):
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">'
         '<defs>'
-        f'<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{BG_TOP}"/>'
-        f'<stop offset="1" stop-color="{BG_BOTTOM}"/></linearGradient>'
+        f'<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{bg_top}"/>'
+        f'<stop offset="1" stop-color="{bg_bottom}"/></linearGradient>'
         '<radialGradient id="glow" cx="0.5" cy="0.12" r="0.7"><stop offset="0" stop-color="#fff" stop-opacity="0.28"/>'
         '<stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
         '<filter id="sh" x="-10%" y="-10%" width="120%" height="125%">'
@@ -100,7 +101,7 @@ def svg(motif, texture):
         f'{ink_filter}</defs>'
         '<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#sh)"/>'
         '<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#glow)"/>'
-        f'<g transform="rotate({TILT} {C} {C})" fill="{INK}" stroke="{INK}" stroke-linecap="round"{filt}>{motif}</g>'
+        f'<g transform="rotate({TILT} {C} {C})" fill="{ink}" stroke="{ink}" stroke-linecap="round"{filt}>{motif}</g>'
         '</svg>')
 
 
@@ -157,37 +158,31 @@ def date_band():
     return band(236, -62, 62, 216, 60, 88, 18, 84, 64)
 
 
-# v0.3 candidates (python3 gen.py --variants): the rich stamp of the old large icon, but only two concentric
-# motifs (heavy outer ring + one motif ring), fewer and bigger elements, more air. Each has a small variant.
-TEXT_LINES = [(-136, 220), (-102, 140), (90, 140), (124, 220)]
-WIDE_BAND = lambda: band(240, -70, 70, 222, 68, 108, 22, 90, 64)
-STD_BAND = lambda: band(222, -56, 56, 204, 60, 86, 17, 80, 60)
+# v0.4: the chosen motif (v0.3 "c-perlen") in four colour pairs (background top, background bottom, ink).
+MOTIF = (
+    lambda: ring(326, 34) + dots(28, 264, 20) + band(222, -56, 56, 204, 60, 86, 17, 80, 60) + bars(
+        [(-136, 220), (-102, 140), (90, 140), (124, 220)]),
+    lambda: ring(322, 62) + dots(20, 258, 28) + band(220, -70, 70, 204, 62, 94, 20, 88, 70),
+)
 
-VARIANTS = {
-    # A: tick ring inside, date plaque and text lines.
-    "a-strichring": (
-        lambda: ring(326, 32) + ticks(48, 252, 288, 11) + STD_BAND() + bars(TEXT_LINES),
-        lambda: ring(322, 62) + ticks(24, 232, 282, 22) + band(220, -70, 70, 204, 62, 94, 20, 88, 70)),
-    # B: tick ring, bigger date, no text lines.
-    "b-datum-gross": (
-        lambda: ring(326, 34) + ticks(40, 254, 296, 13) + WIDE_BAND(),
-        lambda: ring(322, 62) + ticks(24, 250, 296, 24) + band(240, -84, 84, 226, 70, 120, 22, 96, 70)),
-    # C: beads inside, date plaque and text lines.
-    "c-perlen": (
-        lambda: ring(326, 34) + dots(28, 264, 20) + STD_BAND() + bars(TEXT_LINES),
-        lambda: ring(322, 62) + dots(20, 258, 28) + band(220, -70, 70, 204, 62, 94, 20, 88, 70)),
+COLORS = {
+    "indigo": ("#6f8dff", "#1c2f9e", "#eef2ff"),
+    "petrol": ("#2fd0b8", "#0b5a63", "#eafff8"),
+    "orange": ("#f27a2c", "#b02a04", "#fff1e0"),
+    "anthrazit": ("#4b525c", "#14171c", "#ffc233"),
 }
 
 
 def write_variants(out):
     out.mkdir(parents=True, exist_ok=True)
-    for name, (large, small) in VARIANTS.items():
-        (out / f"icon-{name}.svg").write_text(svg(large(), True))
-        (out / f"icon-{name}-small.svg").write_text(svg(small(), False))
+    large, small = MOTIF
+    for name, colors in COLORS.items():
+        (out / f"icon-{name}.svg").write_text(svg(large(), True, colors))
+        (out / f"icon-{name}-small.svg").write_text(svg(small(), False, colors))
 
 
 if __name__ == "__main__" and "--variants" in __import__("sys").argv:
-    write_variants(OUT.parent / "prj" / "icons" / "v0.3")
+    write_variants(OUT.parent / "prj" / "icons" / "v0.4")
 elif __name__ == "__main__":
     (OUT / "icon-large.svg").write_text(svg(large_motif(), True))
     (OUT / "icon-small.svg").write_text(svg(small_motif(), False))

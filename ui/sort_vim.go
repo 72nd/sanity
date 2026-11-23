@@ -80,6 +80,10 @@ func InstallVim(sh *shell.Shell, act *SortActions, keys *presenter.Keys) {
 			act.CopyAbs()
 		case "remove":
 			act.Remove()
+		case "putback":
+			act.PutBack()
+		case "adopt":
+			act.AdoptInPlace()
 		case "add":
 			act.AddFiles()
 		case "search":

@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"io"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -41,6 +42,10 @@ type sortWidgets struct {
 	date    *widgets.DateEntry
 	invoice *widgets.Entry
 	amount  *widgets.Entry
+	// step moves the keyboard focus from the named field ("type", "date",
+	// "invoice", "amount" or "text:<label>") by delta fields along the
+	// chain; it stops at both ends.
+	step func(from string, delta int)
 }
 
 // SortPage builds the work screen: queue, PDF preview and the sort form.
@@ -59,6 +64,9 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	w.queue.Key = func(it inbox.Item) string { return it.ID }
 	w.picker.PlaceHolder = i18n.T("sort.type.placeholder")
 	pathLabel := widgets.NewLabel("", widgets.LabelMuted)
+	putBackBtn := widgets.NewButton(i18n.T("sort.putback"), widgets.ButtonSecondary, func() { act.PutBack() })
+	adoptBtn := widgets.NewButton(i18n.T("sort.adopt"), widgets.ButtonSecondary, func() { act.AdoptInPlace() })
+	deleteBtn := widgets.NewButton(i18n.T("sort.delete"), widgets.ButtonDanger, func() { act.Remove() })
 	hint := widgets.NewLabel("", widgets.LabelMuted)
 	dupLabel := widgets.NewLabel("", widgets.LabelBody)
 	var dupEntry domain.LibraryEntry
@@ -98,7 +106,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 				refreshForm()
 			}
 		}
-		e.OnSubmitted = func(string) { focusNext("text:" + label) }
+		e.OnSubmitted = func(string) { w.step("text:"+label, 1) }
 		e.OnEscape = func() { act.SetMode(true) }
 		textEntries[label] = e
 		return e
@@ -141,6 +149,17 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 			dupBar.Show()
 		} else {
 			dupBar.Hide()
+		}
+		// put back and adopt need an origin the document can return to
+		if p.CanPutBack() {
+			putBackBtn.Enable()
+		} else {
+			putBackBtn.Disable()
+		}
+		if p.CanAdoptInPlace() {
+			adoptBtn.Enable()
+		} else {
+			adoptBtn.Disable()
 		}
 		pathLabel.Refresh()
 		hint.Refresh()
@@ -315,12 +334,43 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		analyse()
 	}
 
-	// Keyboard flow: Enter accepts a field and moves to the next empty one.
-	focusNext = func(from string) {
+	// Keyboard flow: Enter goes to the next field, whether it is empty or not
+	// (type, date, invoice, amount, then the free texts); Shift+Enter goes back.
+	fieldOrder := func() []string {
 		order := []string{"type", "date", "invoice", "amount"}
 		for _, l := range p.TextFields() {
 			order = append(order, "text:"+l)
 		}
+		return order
+	}
+	focusField := func(n string) {
+		switch {
+		case n == "type":
+			w.picker.Focus()
+		case n == "date":
+			w.date.Focus()
+		case n == "invoice":
+			sh.Focus(w.invoice)
+		case n == "amount":
+			sh.Focus(w.amount)
+		case strings.HasPrefix(n, "text:"):
+			sh.Focus(textEntry(n[5:]))
+		}
+	}
+	w.step = func(from string, delta int) {
+		order := fieldOrder()
+		for i, n := range order {
+			if n == from {
+				if j := i + delta; j >= 0 && j < len(order) {
+					focusField(order[j])
+				}
+				return
+			}
+		}
+	}
+	// focusNext moves to the next empty field after from ("" = from the top).
+	focusNext = func(from string) {
+		order := fieldOrder()
 		start := 0
 		for i, n := range order {
 			if n == from {
@@ -362,7 +412,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		syncTexts()
 		syncing = false
 		refreshForm()
-		focusNext("type")
+		w.step("type", 1)
 	}
 	w.date.OnChanged = func(t *time.Time) {
 		if syncing {
@@ -373,21 +423,21 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		}
 		refreshForm()
 	}
-	w.date.OnSubmitted = func(*time.Time) { focusNext("date") }
+	w.date.OnSubmitted = func(*time.Time) { w.step("date", 1) }
 	w.invoice.OnChanged = func(s string) {
 		if !syncing {
 			p.SetInvoice(s)
 			refreshForm()
 		}
 	}
-	w.invoice.OnSubmitted = func(string) { focusNext("invoice") }
+	w.invoice.OnSubmitted = func(string) { w.step("invoice", 1) }
 	w.amount.OnChanged = func(s string) {
 		if !syncing {
 			p.SetAmount(s)
 			refreshForm()
 		}
 	}
-	w.amount.OnSubmitted = func(string) { focusNext("amount") }
+	w.amount.OnSubmitted = func(string) { w.step("amount", 1) }
 	w.queue.OnActivated = func(it *inbox.Item) {
 		if it != nil && p.Open(it.ID) {
 			showDoc()
@@ -479,24 +529,41 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 	}
 	act.Skip = func() { p.Step(1); showDoc() }
 	act.SkipBack = func() { p.Step(-1); showDoc() }
-	act.Import = func(paths ...string) {
-		if p.Import(paths...) {
-			showDoc()
-		}
+	// importPaths moves the files into the inbox in a goroutine (the import
+	// moves files); done gets the number of new documents on the UI thread.
+	// A move that failed is shown in an error dialog.
+	importPaths := func(paths []string, done func(added int)) {
+		go func() {
+			before := p.Count()
+			opened, err := p.ImportPaths(paths...)
+			added := p.Count() - before
+			fyne.Do(func() {
+				if opened {
+					showDoc()
+				}
+				if err != nil {
+					widgets.ShowError(sh.Win, err)
+				}
+				if done != nil {
+					done(added)
+				}
+			})
+		}()
 	}
+	act.Import = func(paths ...string) { importPaths(paths, nil) }
 	act.PasteFiles = func() {
 		paths := clipboardFiles()
 		if len(paths) == 0 {
 			notify(theme.StatusWarning, i18n.T("toast.paste.none"))
 			return
 		}
-		before := p.Count()
-		act.Import(paths...)
-		if n := p.Count() - before; n > 0 {
-			notify(theme.StatusInfo, i18n.T("toast.pasted", "Count", strconv.Itoa(n)))
-		} else {
-			notify(theme.StatusWarning, i18n.T("toast.paste.none"))
-		}
+		importPaths(paths, func(n int) {
+			if n > 0 {
+				notify(theme.StatusInfo, i18n.T("toast.pasted", "Count", strconv.Itoa(n)))
+			} else {
+				notify(theme.StatusWarning, i18n.T("toast.paste.none"))
+			}
+		})
 	}
 	act.LearnRules = func() {
 		go func() {
@@ -574,13 +641,61 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 					err := p.Remove()
 					fyne.Do(func() {
 						if err != nil {
-							notify(theme.StatusDanger, err.Error())
+							widgets.ShowError(sh.Win, err)
 							return
 						}
+						notify(theme.StatusInfo, i18n.T("toast.deleted", "Name", cur.Name))
 						showDoc()
 					})
 				}()
 			})
+	}
+	// PutBack moves the document back to where it was imported from; it
+	// needs no confirmation because nothing is lost.
+	act.PutBack = func() {
+		cur, ok := p.Current()
+		if !ok {
+			return
+		}
+		if !p.CanPutBack() {
+			notify(theme.StatusWarning, i18n.T("error.sort.noorigin"))
+			return
+		}
+		saveView()
+		go func() {
+			err := p.PutBack()
+			fyne.Do(func() {
+				if err != nil {
+					widgets.ShowError(sh.Win, err)
+					return
+				}
+				notify(theme.StatusInfo, i18n.T("toast.putback", "Name", cur.Name))
+				showDoc()
+			})
+		}()
+	}
+	// AdoptInPlace records the document in the library where it lies (no
+	// renaming); it needs type and date and an origin inside the project.
+	act.AdoptInPlace = func() {
+		if _, ok := p.Current(); !ok {
+			return
+		}
+		if !p.CanAdoptInPlace() {
+			notify(theme.StatusWarning, i18n.T("error.sort.noorigin"))
+			return
+		}
+		saveView()
+		go func() {
+			e, err := p.AdoptInPlace(context.Background())
+			fyne.Do(func() {
+				if err != nil {
+					widgets.ShowError(sh.Win, err)
+					return
+				}
+				notify(theme.StatusSuccess, i18n.T("toast.adopted", "Path", e.Path))
+				showDoc()
+			})
+		}()
 	}
 
 	fileBtn := widgets.NewButton(i18n.T("sort.file"), widgets.ButtonPrimary, func() { act.File() })
@@ -597,6 +712,7 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		textBox,
 		pathLabel, hint,
 		widgets.HBox(fileBtn, skipBtn, learnBtn),
+		widgets.HBox(putBackBtn, adoptBtn, deleteBtn),
 	)
 	batchBtn := widgets.NewButton("", widgets.ButtonPrimary, func() { act.FileBatch() })
 	batchBox := widgets.VBox(batchTitle, batchHint,
@@ -698,6 +814,20 @@ func SortPage(sh *shell.Shell, p *presenter.Sort, q *inbox.Queue, act *SortActio
 		if cur, ok := p.Current(); ok && shownID != cur.ID {
 			showDoc()
 		}
+		if p.Types() == nil {
+			return // the first load of Build is still running
+		}
+		// A type created or changed on the Types page shows up without a restart.
+		go func() {
+			old := p.Types()
+			if err := p.LoadTypes(context.Background()); err != nil {
+				return
+			}
+			if reflect.DeepEqual(old, p.Types()) {
+				return
+			}
+			fyne.Do(syncFields)
+		}()
 	}
 	act.fields = w
 	go func() { // the page is attached to the window when this returns

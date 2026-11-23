@@ -19,9 +19,13 @@ type SortActions struct {
 	LearnRules                           func()
 	Import                               func(paths ...string)
 	CopyRel, CopyAbs, Reveal, Remove     func()
-	First, Last                          func()
-	PasteFiles                           func() // import files copied in Finder
-	FileBatch, UndoBatch                 func() // file the selected documents with one type; undo the last batch
+	// PutBack moves the document to where it was imported from; Remove (the
+	// "Delete" button) trashes it after a confirmation; AdoptInPlace records
+	// it in the library at its origin inside the project (no renaming).
+	PutBack, AdoptInPlace func()
+	First, Last           func()
+	PasteFiles            func() // import files copied in Finder
+	FileBatch, UndoBatch  func() // file the selected documents with one type; undo the last batch
 	// SetMode is called with true when the keyboard focus left the form (Vim
 	// normal mode) and with false when a field has it again (insert mode).
 	SetMode func(normal bool)
@@ -47,7 +51,7 @@ func NewSortActions() *SortActions {
 		ZoomIn: nop, ZoomOut: nop, ZoomFit: nop,
 		ScrollDown: nop, ScrollUp: nop, Search: nop, PageNext: nop, PagePrev: nop, LearnRules: nop,
 		Import: func(...string) {}, Focus: func(string) {}, shown: nop, Library: NewLibraryActions(), ShowInLibrary: func(domain.LibraryEntry) {},
-		CopyRel: nop, CopyAbs: nop, Reveal: nop, Remove: nop, First: nop, Last: nop, PasteFiles: nop, FileBatch: nop, UndoBatch: nop, SetMode: func(bool) {},
+		CopyRel: nop, CopyAbs: nop, Reveal: nop, Remove: nop, PutBack: nop, AdoptInPlace: nop, First: nop, Last: nop, PasteFiles: nop, FileBatch: nop, UndoBatch: nop, SetMode: func(bool) {},
 	}
 }
 
@@ -76,12 +80,19 @@ func sortCommands(a *SortActions) []shell.Command {
 		{ID: "sort.paste", Title: t("cmd.sort.paste"), Shortcut: mod(fyne.KeyV, fyne.KeyModifierShift), Run: func() { a.PasteFiles() }},
 		{ID: "sort.reveal", Title: t("cmd.sort.reveal"), Shortcut: shell.Ctrl(fyne.KeyR), Run: func() { a.Reveal() }},
 		{ID: "sort.remove", Title: t("cmd.sort.remove"), Shortcut: mod(fyne.KeyBackspace, fyne.KeyModifierShift), Run: func() { a.Remove() }},
+		{ID: "sort.putback", Title: t("cmd.sort.putback"), Shortcut: mod(fyne.KeyB, fyne.KeyModifierShift), Run: func() { a.PutBack() }},
+		{ID: "sort.adopt", Title: t("cmd.sort.adopt"), Shortcut: mod(fyne.KeyA, fyne.KeyModifierShift), Run: func() { a.AdoptInPlace() }},
 		{ID: "sort.pagenext", Title: t("cmd.sort.pagenext"), Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyDown, Modifier: fyne.KeyModifierAlt}, Run: func() { a.PageNext() }},
 		{ID: "sort.pageprev", Title: t("cmd.sort.pageprev"), Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyUp, Modifier: fyne.KeyModifierAlt}, Run: func() { a.PagePrev() }},
 		{ID: "sort.scrolldown", Title: t("cmd.sort.scrolldown"), Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyD, Modifier: fyne.KeyModifierControl}, Run: func() { a.ScrollDown() }},
 		{ID: "sort.scrollup", Title: t("cmd.sort.scrollup"), Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyU, Modifier: fyne.KeyModifierControl}, Run: func() { a.ScrollUp() }},
 		{ID: "sort.learn", Title: t("cmd.sort.learn"), Shortcut: shell.Ctrl(fyne.KeyL), Run: func() { a.LearnRules() }},
-		{ID: "sort.zoomin", Title: t("cmd.sort.zoomin"), Shortcut: shell.Ctrl(fyne.KeyEqual), Run: func() { a.ZoomIn() }},
+		// Cmd++ depends on the layout: the "+" key (Fyne: KeyPlus, also the
+		// keypad), or Shift+= on a US layout. Each variant is its own command
+		// because a command has one shortcut; Cmd+= stays.
+		{ID: "sort.zoomin", Title: t("cmd.sort.zoomin"), Shortcut: shell.Ctrl(fyne.KeyPlus), Run: func() { a.ZoomIn() }},
+		{ID: "sort.zoomin.equal", Title: t("cmd.sort.zoomin"), Shortcut: shell.Ctrl(fyne.KeyEqual), Run: func() { a.ZoomIn() }},
+		{ID: "sort.zoomin.shift", Title: t("cmd.sort.zoomin"), Shortcut: mod(fyne.KeyEqual, fyne.KeyModifierShift), Run: func() { a.ZoomIn() }},
 		{ID: "sort.zoomout", Title: t("cmd.sort.zoomout"), Shortcut: shell.Ctrl(fyne.KeyMinus), Run: func() { a.ZoomOut() }},
 		{ID: "sort.zoomfit", Title: t("cmd.sort.zoomfit"), Shortcut: shell.Ctrl(fyne.Key0), Run: func() { a.ZoomFit() }},
 	}

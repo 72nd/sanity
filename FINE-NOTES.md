@@ -48,3 +48,15 @@ Gaps, bugs and surprises found while building sanity. Newest first.
 - Origins are absolute paths: after moving the project folder "put back" targets the old directory and `AdoptInPlace` refuses such documents.
 - `fmt.Sprintf("%d.%02d", c/100, c%100)` is duplicated in `inbox/corrections.go` (`FormatAmount`), `ui/presenter/suggest.go` and `ui/presenter/sort_batch.go`; negative cents below 100 print garbage (`-50` becomes `0.-50`). `ParseAmount` (`library_ops.go`) does not know no-break-space grouping.
 - The leading dot in `.39000.00 EUR` could not be reproduced in `analysis.FindAmount`; needs the original line as synthetic text.
+
+## 2026-11-23 (v0.2.0, wave 2)
+
+- `wrapPair` (`ui/layout.go`): a Fyne `Layout` does not know its width in `MinSize`, so it remembers the mode of the last `Layout` call. A generic `widgets.ResponsivePair` would be cleaner. The break point 560 is an estimate.
+- No `widgets.HScroll`; `widgets.Scroll` scrolls both ways and fits when the height is set by the caller.
+- `DialogButton` has no `Disabled`/`SetEnabled` (workaround: `KeepOpen` and a guard in the callback); `widgets.Dialog` exposes no footer buttons for tests.
+- `shell.New` builds the first page immediately, before `sh.Prefs` exists (Recents on the welcome page). A config hook or a `Prefs` instance before `New` would be cleaner.
+- `widgets.Select` has no icon and no separator; "Open project…" and "Overview" are plain options. `ShowFolderOpen` cannot create a folder.
+- Fyne gives no modifiers in `KeyEvent`: Shift+Enter arrives as `TypedKey(Return)` at the focused widget. Entry/Picker/DateEntry need `OnSubmitBack`/`OnCommitBack` (open, needs a decision).
+- A `Command` has one shortcut; Cmd++ needs three commands (`+`, `=`, Shift+`=`) that show up several times in the palette and the shortcut dialog. `Command.Aliases` or a `Hidden` flag would be cleaner.
+- `Sort.LoadTypes` writes `p.types` from a goroutine (latent race, as at the first load).
+- After "Overview" only the welcome page commands are active; Library/Sort shortcuts are not checked for nil safety without a project.

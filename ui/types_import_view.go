@@ -34,21 +34,23 @@ type importDialog struct {
 	example    *widgets.Label
 	dry        *grid.Grid[presenter.DryRunRow]
 	dryBox     fyne.CanvasObject
+	dryHead    fyne.CanvasObject
 	collision  *widgets.RadioGroup
 	collRow    fyne.CanvasObject
 	checkBtn   *widgets.Button
-	saveBtn    *widgets.Button
-	saveEdit   *widgets.Button
+	canSave    bool
 	results    fyne.CanvasObject
 	content    fyne.CanvasObject
 	dlg        widgets.Dialog
+	minWidth   float32
 	privSerial int
 }
 
-// sizeLayout gives its child a fixed minimum size.
-type sizeLayout struct{ w, h float32 }
+// sizeLayout gives its child a fixed minimum height. The width is left to the
+// dialog (widgets.DialogOptions.MinWidth), so the content follows its width.
+type sizeLayout struct{ h float32 }
 
-func (l sizeLayout) MinSize([]fyne.CanvasObject) fyne.Size { return fyne.NewSize(l.w, l.h) }
+func (l sizeLayout) MinSize([]fyne.CanvasObject) fyne.Size { return fyne.NewSize(0, l.h) }
 func (l sizeLayout) Layout(o []fyne.CanvasObject, s fyne.Size) {
 	for _, c := range o {
 		c.Move(fyne.NewPos(0, 0))
@@ -92,7 +94,7 @@ func newImportDialog(sh *shell.Shell, p *presenter.Types, onDone func(id string,
 		d.refreshPrivacy()
 	})
 	d.checkBtn = widgets.NewButton(i18n.T("types.import.check"), widgets.ButtonPrimary, d.check)
-	d.samples = widgets.NewLabel("", widgets.LabelMuted)
+	d.samples = widgets.NewWrapLabel("", widgets.LabelMuted)
 
 	d.privacy = widgets.VBox().(*fyne.Container)
 	d.findings = widgets.VBox().(*fyne.Container)
@@ -102,13 +104,13 @@ func newImportDialog(sh *shell.Shell, p *presenter.Types, onDone func(id string,
 	d.rules.AccessibleLabel = i18n.T("types.rules")
 	d.rules.Key = func(r presenter.ImportRuleRow) string { return string(rune('a' + r.Index)) }
 	d.rules.StretchLast = true
-	d.rulesBox = withFitHeight(func() float32 { return gridHeight(d.rules.Len()) }, d.rules)
-	d.example = widgets.NewLabel("", widgets.LabelBody)
+	d.rulesBox = tableScroll(func() int { return d.rules.Len() }, d.rules)
+	d.example = widgets.NewWrapLabel("", widgets.LabelBody)
 	d.dry = grid.New(d.dryColumns())
 	d.dry.AccessibleLabel = i18n.T("types.import.dry")
 	d.dry.Key = func(r presenter.DryRunRow) string { return r.Sample }
 	d.dry.StretchLast = true
-	d.dryBox = withFitHeight(func() float32 { return gridHeight(d.dry.Len()) }, d.dry)
+	d.dryBox = tableScroll(func() int { return d.dry.Len() }, d.dry)
 
 	d.collision = widgets.NewRadioGroup(nil, true, func(s string) {
 		if s != "" {
@@ -118,27 +120,22 @@ func newImportDialog(sh *shell.Shell, p *presenter.Types, onDone func(id string,
 	d.collRow = widgets.NewFormRow(i18n.T("types.import.collision"), d.collision)
 	d.collRow.Hide()
 
-	d.saveBtn = widgets.NewButton(i18n.T("types.import.save"), widgets.ButtonPrimary, func() { d.save(false) })
-	d.saveEdit = widgets.NewButton(i18n.T("types.import.saveEdit"), widgets.ButtonSecondary, func() { d.save(true) })
-	d.saveBtn.Disable()
-	d.saveEdit.Disable()
-
+	d.dryHead = widgets.NewLabel(i18n.T("types.import.dry"), widgets.LabelHeading)
 	d.results = widgets.VBox(
 		widgets.NewLabel(i18n.T("types.import.results"), widgets.LabelHeading),
 		d.findings,
 		widgets.NewLabel(i18n.T("types.import.rules"), widgets.LabelHeading),
 		d.rulesBox,
 		d.example,
-		widgets.NewLabel(i18n.T("types.import.dry"), widgets.LabelHeading),
+		d.dryHead,
 		d.dryBox,
 		d.extra,
 		d.collRow,
-		widgets.HBox(widgets.Spacer(), d.saveEdit, d.saveBtn),
 	)
 	d.results.Hide()
 
 	body := widgets.VBox(
-		widgets.NewLabel(i18n.T("types.import.intro"), widgets.LabelMuted),
+		widgets.NewWrapLabel(i18n.T("types.import.intro"), widgets.LabelMuted),
 		d.snippet,
 		widgets.HBox(paste, addSample, clearSamples, widgets.Spacer(), d.checkBtn),
 		d.samples,
@@ -146,7 +143,8 @@ func newImportDialog(sh *shell.Shell, p *presenter.Types, onDone func(id string,
 		d.results,
 	)
 	win := sh.Win.Canvas().Size()
-	d.content = fyne.NewContainerWithLayout(sizeLayout{w: min(max(win.Width*0.8, 560), 940), h: min(max(win.Height*0.7, 360), 640)},
+	d.minWidth = min(max(win.Width*0.8, 560), 940)
+	d.content = fyne.NewContainerWithLayout(sizeLayout{h: min(max(win.Height*0.7, 360), 640)},
 		widgets.Scroll(widgets.PagePadded(body)))
 	d.refreshSamples()
 	return d
@@ -154,12 +152,33 @@ func newImportDialog(sh *shell.Shell, p *presenter.Types, onDone func(id string,
 
 func gridHeight(rows int) float32 {
 	row := theme.Size(theme.SizeRow)
-	return min(max(float32(rows+1)*row+8, 3*row), 10*row)
+	return min(float32(rows+1)*row+8, 10*row)
 }
 
-// show opens the dialog; Cancel is its close button.
+// tableScroll puts a table into its own scroll area, so a wide table scrolls
+// sideways and the rest of the dialog keeps the dialog width. The height
+// follows the row count (plus room for the scroll bar).
+func tableScroll(rows func() int, table fyne.CanvasObject) fyne.CanvasObject {
+	bar := theme.Size(theme.SizeRow) / 2
+	return withFitHeight(func() float32 { return gridHeight(rows()) + bar }, widgets.Scroll(table))
+}
+
+// noteRow is a status badge with a text that wraps at the dialog width.
+func noteRow(st theme.Status, word, text string) fyne.CanvasObject {
+	return widgets.Border(nil, nil, widgets.NewStatusBadge(st, word), nil, widgets.NewWrapLabel(text, widgets.LabelBody))
+}
+
+// show opens the dialog. Cancel is the cancel button of the footer, the two
+// save buttons follow it; they do nothing until a check allowed saving.
 func (d *importDialog) show() {
-	d.dlg = widgets.ShowCustom(d.sh.Win, i18n.T("types.import.title"), d.content, i18n.T("types.import.cancel"))
+	d.dlg = widgets.ShowDialog(d.sh.Win, i18n.T("types.import.title"), d.content, widgets.DialogOptions{
+		MinWidth:    d.minWidth,
+		CancelLabel: i18n.T("types.import.cancel"),
+		Buttons: []widgets.DialogButton{
+			{Label: i18n.T("types.import.saveEdit"), Variant: widgets.ButtonSecondary, KeepOpen: true, OnTap: func() { d.save(true) }},
+			{Label: i18n.T("types.import.save"), Variant: widgets.ButtonPrimary, KeepOpen: true, OnTap: func() { d.save(false) }},
+		},
+	})
 	d.sh.Win.Canvas().Focus(d.snippet)
 }
 
@@ -210,8 +229,7 @@ func (d *importDialog) dryColumns() []grid.Column[presenter.DryRunRow] {
 // reset hides the results; the snippet or the samples changed.
 func (d *importDialog) reset() {
 	d.results.Hide()
-	d.saveBtn.Disable()
-	d.saveEdit.Disable()
+	d.canSave = false
 }
 
 func (d *importDialog) refreshSamples() {
@@ -238,9 +256,9 @@ func (d *importDialog) refreshPrivacy() {
 			}
 			d.privacy.Objects = nil
 			if len(hits) > 0 {
-				d.privacy.Add(widgets.HBox(widgets.NewStatusBadge(theme.StatusWarning, i18n.T("types.import.level.warning")),
-					widgets.NewLabel(i18n.T("types.import.privacy", "Tokens", strings.Join(hits, ", ")), widgets.LabelBody)))
-				d.privacy.Add(widgets.NewLabel(i18n.T("types.import.privacy.hint"), widgets.LabelMuted))
+				d.privacy.Add(noteRow(theme.StatusWarning, i18n.T("types.import.level.warning"),
+					i18n.T("types.import.privacy", "Tokens", strings.Join(hits, ", "))))
+				d.privacy.Add(widgets.NewWrapLabel(i18n.T("types.import.privacy.hint"), widgets.LabelMuted))
 			}
 			d.privacy.Refresh()
 		})
@@ -287,14 +305,14 @@ func (d *importDialog) check() {
 // showError shows a failed parse as one error row.
 func (d *importDialog) showError(err error) {
 	d.reset()
-	d.findings.Objects = []fyne.CanvasObject{widgets.HBox(
-		widgets.NewStatusBadge(theme.StatusDanger, i18n.T("types.import.level.error")),
-		widgets.NewLabel(err.Error(), widgets.LabelBody))}
+	d.findings.Objects = []fyne.CanvasObject{noteRow(theme.StatusDanger, i18n.T("types.import.level.error"), err.Error())}
 	d.findings.Refresh()
 	d.rules.SetItems(nil)
 	d.dry.SetItems(nil)
 	d.example.SetText("")
 	d.extra.Objects = nil
+	d.dryHead.Hide()
+	d.dryBox.Hide()
 	d.collRow.Hide()
 	d.results.Show()
 }
@@ -306,7 +324,7 @@ func (d *importDialog) render() {
 	d.findings.Objects = nil
 	for _, f := range rep.Findings {
 		st, word := statusOf(f.Level)
-		d.findings.Add(widgets.HBox(widgets.NewStatusBadge(st, word), widgets.NewLabel(p.FindingText(f), widgets.LabelBody)))
+		d.findings.Add(noteRow(st, word, p.FindingText(f)))
 	}
 	d.findings.Refresh()
 
@@ -316,16 +334,23 @@ func (d *importDialog) render() {
 	} else {
 		d.example.SetText(i18n.T("types.import.example", "Path", pv.Path))
 	}
-	d.dry.SetItems(p.DryRun())
+	dry := p.DryRun()
+	d.dry.SetItems(dry)
+	// No sample, no dry run: an empty table would only leave a gap.
+	d.dryHead.Show()
+	d.dryBox.Show()
+	if len(dry) == 0 {
+		d.dryHead.Hide()
+		d.dryBox.Hide()
+	}
 
 	d.extra.Objects = nil
 	for _, w := range p.ImportWarnings() {
-		d.extra.Add(widgets.HBox(widgets.NewStatusBadge(theme.StatusWarning, i18n.T("types.import.level.warning")),
-			widgets.NewLabel(i18n.T("types.import.note", "Text", w), widgets.LabelBody)))
+		d.extra.Add(noteRow(theme.StatusWarning, i18n.T("types.import.level.warning"), i18n.T("types.import.note", "Text", w)))
 	}
 	for _, h := range p.LibraryHits() {
-		d.extra.Add(widgets.HBox(widgets.NewStatusBadge(theme.StatusWarning, i18n.T("types.import.level.warning")),
-			widgets.NewLabel(i18n.T("types.import.libhit", "Path", h.Path, "Type", h.TypeName, "Score", h.Score), widgets.LabelBody)))
+		d.extra.Add(noteRow(theme.StatusWarning, i18n.T("types.import.level.warning"),
+			i18n.T("types.import.libhit", "Path", h.Path, "Type", h.TypeName, "Score", h.Score)))
 	}
 	d.extra.Refresh()
 
@@ -341,19 +366,17 @@ func (d *importDialog) render() {
 	} else {
 		d.collRow.Hide()
 	}
-	if p.CanSave() {
-		d.saveBtn.Enable()
-		d.saveEdit.Enable()
-	} else {
-		d.saveBtn.Disable()
-		d.saveEdit.Disable()
-	}
+	d.canSave = p.CanSave()
+	d.rulesBox.Refresh()
+	d.dryBox.Refresh()
 	d.results.Show()
 }
 
 func (d *importDialog) save(andEdit bool) {
-	d.saveBtn.Disable()
-	d.saveEdit.Disable()
+	if !d.canSave {
+		return
+	}
+	d.canSave = false
 	go func() {
 		id, err := d.p.ImportType(context.Background(), andEdit)
 		fyne.Do(func() {

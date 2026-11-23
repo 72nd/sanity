@@ -89,7 +89,7 @@ func TestSortFormTextEntry(t *testing.T) {
 	}
 }
 
-// Enter after the last filled field moves on to the empty text entry.
+// Enter walks the chain type, date, invoice, amount, free text.
 func TestSortFormEnterReachesTextEntry(t *testing.T) {
 	st := store.NewFake()
 	ty := domain.DocumentType{ID: "t-proj", Name: "Project Invoice",
@@ -106,7 +106,13 @@ func TestSortFormEnterReachesTextEntry(t *testing.T) {
 	old := entries(sh.Win.Content())
 	w := lastAct.fields
 	w.picker.SetQuery("Project Inv")
-	w.picker.Commit() // Enter in the type field: the next empty field is the text entry
+	w.picker.Commit() // Enter in the type field goes to the date, filled or not
+	if got := focusedKind(sh); got != "*widgets.dateField" {
+		t.Fatalf("focus after type is %s, want the date field", got)
+	}
+	w.date.OnSubmitted(nil)
+	w.invoice.OnSubmitted("")
+	w.amount.OnSubmitted("")
 	var te *widgets.Entry
 	for e := range entries(sh.Win.Content()) {
 		if !old[e] {

@@ -30,6 +30,8 @@ type ProjectNav struct {
 	Saved func(inboxChanged bool)
 	// Dirty reports unsaved edits on the project page; nil means none.
 	Dirty func() bool
+	// Overview closes the project and shows the welcome page. UI thread.
+	Overview func()
 }
 
 // RequestSwitch opens the project at root after the safety questions: unsaved
@@ -139,7 +141,7 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 
 	name := widgets.NewEntry()
 	nameRow := widgets.NewFormRow(i18n.T("project.name"), name)
-	rootLabel := widgets.NewLabel("", widgets.LabelMono)
+	rootLabel := widgets.NewLabel("", widgets.LabelMono) // root path: already monospace
 	revealBtn := widgets.NewButton(i18n.T("project.root.reveal"), widgets.ButtonSecondary, func() {
 		if err := inbox.Reveal(p.Root()); err != nil {
 			notify(theme.StatusDanger, i18n.T("project.reveal.failed", "Reason", err.Error()))
@@ -147,6 +149,7 @@ func projectPage(sh *shell.Shell, p *presenter.Project, nav *ProjectNav) (fyne.C
 	})
 	rootRow := widgets.NewFormRow(i18n.T("project.root"), widgets.HBox(rootLabel, widgets.Spacer(), revealBtn))
 	inboxEntry := widgets.NewEntry()
+	inboxEntry.SetMono(true)
 	chooseBtn := widgets.NewButton(i18n.T("project.inbox.choose"), widgets.ButtonSecondary, nil)
 	inboxRow := widgets.NewFormRow(i18n.T("project.inbox"), widgets.Border(nil, nil, nil, chooseBtn, inboxEntry))
 	ignore := widgets.NewTextArea()

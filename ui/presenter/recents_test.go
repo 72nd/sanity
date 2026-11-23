@@ -77,3 +77,27 @@ func TestRecentsDropMissingProjects(t *testing.T) {
 		t.Error("HasProject")
 	}
 }
+
+func TestRecentsMenu(t *testing.T) {
+	r := NewRecents(memPrefs{})
+	r.Exists = func(string) bool { return true }
+	r.Add("/p/a", "Alpha")
+	r.Add("/p/b", "Beta")
+	r.Add("/q/b", "Beta")
+	tr := func(id string, _ ...any) string { return id }
+	m := r.Menu("/p/a", "Alpha", tr)
+	var labels []string
+	for _, e := range m {
+		labels = append(labels, e.Label)
+	}
+	want := []string{"Alpha", "Beta  (/q/b)", "Beta  (/p/b)", "project.menu.open", "project.menu.overview"}
+	if !reflect.DeepEqual(labels, want) {
+		t.Errorf("labels = %q", labels)
+	}
+	if m[0].Kind != MenuCurrent || m[1].Kind != MenuRecent || m[3].Kind != MenuOpen || m[4].Kind != MenuOverview {
+		t.Errorf("kinds = %v", m)
+	}
+	if m[1].Root != "/q/b" {
+		t.Errorf("root = %q", m[1].Root)
+	}
+}

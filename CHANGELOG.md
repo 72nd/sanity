@@ -19,3 +19,14 @@
 - CHORE: Changelog rules, keep local scan samples out of git
 
 ## v0.2.0
+- FEAT: Imported documents (drop, file dialog, re-sort) are moved to `office/inbox/`; the origin is kept in `.origins.json` and the inbox survives a restart
+- FEAT: Sort: "Put back" (Cmd+Shift+B, Vim `p`) moves a document to where it came from (also cancels a re-sort); "Adopt in place" (Cmd+Shift+A, Vim `a`) adds a document to the library without renaming; delete button
+- FEAT: Sort: Cmd++ / Cmd+− zoom, Enter always goes to the next field, new types appear without restart, imports run in the background and report errors
+- FEAT: Welcome page at start without argument (icon, recent projects, new, open); project drop-down in the toolbar; version and shortcut button in the footer
+- FEAT: Version constant in `version.go`, checked against `FyneApp.toml` and the last changelog heading
+- FIX: Copied relative paths (library and sort) are relative to the `office` folder (`../receipts/2026/x.pdf`); path template and stored paths stay project-relative
+- FIX: Amount detection reads thousands separators written as no-break, narrow no-break or thin space as one amount
+- STYLE: Types settings: date format legend one line per year/month/day, "Choose folder" next to the path preview, Source and Maximum age side by side in wide windows, monospace path fields
+- STYLE: Type import dialog: save buttons in the dialog footer, tables scroll sideways, warnings wrap
+- STYLE: Shortcut overview in a 720 px dialog with two columns, opened from a footer button
+- CHORE: Icon variants for v0.2 in `prj/icons/` (selection pending)
