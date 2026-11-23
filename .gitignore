@@ -57,3 +57,4 @@ testdata/analysis-output
 
 # Task cache
 .task/
+testdata/expected.json
