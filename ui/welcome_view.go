@@ -97,6 +97,7 @@ func ProjectMenu(sh *shell.Shell, nav *ProjectNav, root, name string) fyne.Canva
 		widgets.ShowContextMenu(btn, fyne.NewPos(pos.X, pos.Y+btn.Size().Height), projectMenuItems(sh, nav, root, name))
 	})
 	btn.SetIcon(fynetheme.IconNameMoveDown)
+	btn.SetIconTrailing(true)
 	return btn
 }
 
