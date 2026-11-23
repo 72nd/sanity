@@ -47,3 +47,5 @@
 - FIX: Library: sorting and the filter funnel react at once instead of after the double-click delay; parsed amounts are cached for sorting
 - STYLE: Project page in two columns on wide windows (statements card on the left, identifiers text area as tall as its card), wrapping hints, "Overview" button instead of the recent projects list
 - CHORE: Built against fine v0.5.0 (still through the local checkout, `replace => ../..`, while fine is private)
+
+## v0.4.0
