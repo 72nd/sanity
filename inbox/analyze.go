@@ -75,7 +75,7 @@ func (a *Analyzer) Analyze(ctx context.Context, path string) Result {
 	name := filepath.Base(path)
 	// Labels and values emitted as separate blocks are paired in a block
 	// appended to the text; r.Text and the classification keep the original.
-	fields := analysis.PairColumns(text)
+	fields := analysis.PairColumns(analysis.FixLabels(text))
 	doc := analysis.Doc{Text: text, FileName: name, StatementKeywords: pr.StatementWords()}
 	r.Suggestions = analysis.Classify(doc, pr.Types, a.Learned)
 

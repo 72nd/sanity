@@ -263,7 +263,7 @@ func (r *Report) dryRun(in CheckInput) {
 // sampleFields runs the date and amount search of the analyzer for one sample
 // with the settings of type t and formats the best results.
 func sampleFields(text string, t domain.DocumentType) (date, amount string) {
-	fields := PairColumns(text)
+	fields := PairColumns(FixLabels(text))
 	ds := FindDates(fields, time.Now(), DetectLanguage(text), t.Date)
 	if t.IsStatement {
 		if sd, ok := StatementDate(ds); ok {

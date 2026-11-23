@@ -58,7 +58,7 @@ func TestCorpusExpected(t *testing.T) {
 				parts = append(parts, pt.Text)
 			}
 		}
-		text := PairColumns(Normalize(strings.Join(parts, "\n")))
+		text := PairColumns(FixLabels(Normalize(strings.Join(parts, "\n"))))
 		if strings.TrimSpace(text) == "" {
 			t.Logf("%s: no text (OCR available: %v)", name, eng.OCRAvailable())
 			continue
