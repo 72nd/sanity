@@ -1,6 +1,6 @@
 [Details]
-  Icon = "icon/icon.png"
-  Name = "Sanity"
-  ID = "com.72nd.sanity"
-  Version = "0.1.0"
-  Build = 2
+Icon = "icon/icon.png"
+Name = "Sanity"
+ID = "com.72nd.sanity"
+Version = "0.1.0"
+Build = 3

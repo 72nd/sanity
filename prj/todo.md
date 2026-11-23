@@ -1,0 +1,38 @@
+# Todo's nach v0.1.
+
+- Bibliothek: **Extrem wichtig** die kopierbaren relativen Pfade müssen immer relativ zum office Ordner sein. Nicht zum Projekt root. Liegt also ein Dokument nicht innerhalb des office Ordners. Wird der relative Pfad eigentlich immer mit ../ beginnen. Das Path template in Types bleibt aber relativ zum Projektordner.
+- Versionierung: Im Programm soll immer die aktuelle Version im Footer angezeigt werden.
+- Sort: Wir müssen eine gute Lösung finden, wie wir mit Dokumenten umgehen, die der Nutzer aus dem Projektordner importiert. Der Nutzer soll die Möglichkeit haben, das Dokument einfach wieder aus dem Sort entfernen (ohne Löschen oder Trash). Siehe auch nächster Punkt. Es ist aber schon sehr gut und interessant, wenn der Nutzer die Möglichkeit bekommt, auch schon bestehende und korrekt abgelegte Belege in die Bibliothek in sanity aufzunehmen.
+- Bibliothek: Ein Resort soll in Sort auch abgebrochen werden können.
+- Sort: Mir scheint es, als würden gar keine hinzugefügten Dateien in die Inbox verschoben. Das ist nicht gut.
+- Sort: Neben Löschen (was ja auch in die GUI kommen soll) sollte es die Möglichkeit geben, ein Dokument zurückzulegen. Also wieder dorthin zu verschieben, wo es ursprünglich lag. Diese Funktion soll sowohl über die GUI als auch über die Tastatur erreichbar sein.
+- Sort: Dokumente in der Inbox scheinen den Programmneustart nicht zu überleben. Die Inbox ist nach dem Programmstart immer leer.
+- Changelog: Ich habe Claude Rules für Changelogs hinzugefügt. Alles bis jetzt is v0.1.0. Bitte lege die CHANGELOG.md an, committe bis hierhin und tagge dann als v0.1.0. Danach bumpe auf v0.2.0 für die weitere Entwicklung.
+- Projekt: In der Toolbar Rechts soll das aktuelle Projekt sichtbar sein. Am besten soll der Projekttitel dort auch ein Dropdown sein, womit der Nutzer zwischen den Projekten wechseln kann.
+- Types Setting: Die Erläuterung der Dateformatstrings ist noch etwas chaotisch. Bitte jeweilse eine Newline pro Jahr, Monat, Tag. Im Normalfall hat der Nutzer ja nur vergessen, welche Zahl jetzt Jahr, Monat oder Tag bedeutet.
+- Monospace in Textfelder mit Pfaden.
+- Keyboard Shortcuts Popup: Extrem schmal, man kann absolut nichts lesen...
+- Button/Link für Keyboard Shortcuts Popup in den Footer
+- Sort: Zoom in mit Cmd und +
+- Sort: Das Löschen eines Dokuments sollte auch über die GUI möglich sein.
+- Icon: Das Icon ist an sich cool aber die große Version ist für das Dock schon zu verschnörkelt. Also die ganzen Kreise für den Stempel. Ich will da nicht direkt völlig abstraktes und sauberes haben. Vielmehr etwas aus zwei konzentrischen Motiven/Ränder.
+- Beim Startup sollte es eine Welcome-Ansicht geben, in der der User aus seinen bestehenden Projekten auswählen kann oder ein neues Projekt anlegen bzw. über den Dateibrowser öffnen kann. In dieser Welcome-Ansicht soll auch prominent das Icon von sanity zu sehen sein.
+- Fine Toolkit, command palette: Die Keyboard-Shortcuts sollten besser formatiert sein. Sicher rechtsbündig und auch visuell von der Formatierung her irgendwie anders.
+- Fine Toolkit, command palette: Es ist immer eine horizontal Scrollbar zu sehen, auch wenn diese nicht gebraucht wird (alles ist horizontal sichtbar)
+- Import Type
+  - Die Texarea für das JSON wächst horizontal über das Modal hinaus und
+  - Die Tabellen sollte in einer eigenen horizontalen Scroll-Area sein, damit der Rest des Contents sich an der Breite des Modals orientieren kann.
+  - Da ist super viel vertikalen Whitespace zwischen der Dry run Tabelle und den Warnings
+  - Die Buttons Save and edit sowie Save sollten neben Cancel im Footer des Modals stehen.
+- Fine Toolkit: Die Keyshortcuts von macOS bzw. Linux bzw. Windows Shortcuts, um sich in Textfelder/Textareas zu bewegen (Cmd+Pfeiltasten, Alt+Pfeiltasten bzw. Cmd+Pfeiltasten) sollten funktionieren.
+- Neu angelegte Belegtypen werden in Sort erst nach einem Neustart übernommen.
+- Sort Date Field
+  - Auswählen der Kandidaten aus der Liste soll mit Ctrl+k und Ctrl+j auch möglich sein (hoch/runter)
+  - Das mit den Pfeiltasten/Ctrl+k/j ausgewählte Datum soll auch in der Auswahlliste an verfügbaren Daten hervorgehoben sein.
+- Sort: Die Navigation zwischen den verschiedenen Formularfelder muss noch vereinheitlicht werden.
+  - Shift+Enter: Vorheriges Eingabefeld
+  - Enter: Geht **immer** zum nächsten Eingabefeld. Auch von Typ zu Date. (Das geht aktuell noch nicht)
+- Sort: Bei meinem Kontoauszug ist beim (korrekten Amount) einfach noch so ein Dezimalpunkt (also .39000.00 EUR). Wenn das sicher ist, das generell zu lösen, wäre das super.
+- Types Einstellungen: Der Choose folder Button wirkt etwas verloren so weit unter bei Path template. Vielleicht machen wir in rechts neben Valid, Pfadbeispiel und den Datestring Informationen rechts unter das Textfeld.
+- Types Einstellungen, Date: Die Dropdowns Source und Maximum age können bei breiten Fensterbreiten horizontal nebeneinander sein, nicht untereinander.
+- Fine oder sanity aber tendenziell fine: Beim Kontextmenü in der Library ist fast kein Padding rechts von Remove from library. Also jedenfalls viel weniger als links, oben und unten.

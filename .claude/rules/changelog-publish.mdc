@@ -1,53 +1,22 @@
 ---
 description: Finalize a release, then bump the next version in a separate step
-globs: CHANGELOG.md,frontend/src/help/whatsNew.ts,internal/version/version.go,wails.json
+globs: CHANGELOG.md,FyneApp.toml,version.go
 alwaysApply: false
 ---
 
-# Changelog — publishing a version
+# Changelog: publishing a version
 
-Two separate user requests. Do not combine them.
-
-**Only bump the version after you gave the user the time to ship the finalized version.**
-
-The app version (`wails.json` `info.productVersion`, `internal/version/version.go` `Number`) stays on the version being shipped until the user asks for the bump.
+The app version lives in `FyneApp.toml` (`Version`, `Build`) and `version.go` (`Version`, no `v` prefix; a test
+keeps both and the last `CHANGELOG.md` heading equal).
 
 ## 1. Finalize (user asks to publish / finalize)
 
-1. Turn the current highest heading into `## vX.Y.Z – Short summary` (summary after the dash). That heading’s version is the one already in `wails.json` and `version.go`. Do not change those version strings.
-2. **User-facing changelog:** prepend a new release object at the **top** of `whatsNewReleases` in `frontend/src/help/whatsNew.ts` for `vX.Y.Z`.
-3. Stop. Do **not** add the next changelog heading and do **not** bump the version.
-4. Tell the user to ship this version before the bump: commit the finalize, build (`release.sh` or `wails build`), create the git tag, and push the tag to GitHub. Wait for them to ask for the bump.
+1. Turn the current highest heading into `## vX.Y.Z – Short summary` (summary after the dash). Do not change the
+   version strings.
+2. Commit the finalize and create the git tag `vX.Y.Z`. Do not push unless asked.
 
-## 2. Bump (user asks after the build and tag)
+## 2. Bump
 
-Only after they confirm the finalized version is built and the tag is pushed.
-
-1. Add a new empty heading at the **end** of `CHANGELOG.md` for the next **patch** version (`v0.3.8` → `v0.3.9`), unless the user names a different bump. Newer versions stay below older ones; new bullets stay at the end of that last section.
-2. Set that new version string in:
-   - `CHANGELOG.md` (the new empty heading only; leave the closed release as-is)
-   - `wails.json` → `info.productVersion`
-   - `internal/version/version.go` → `Number` (no `v` prefix)
-3. Do not add a `whatsNew.ts` entry for the empty next version.
-
-## Writing `whatsNew.ts` entries
-
-Audience: someone who already drafts and signs contracts in the app, reading **Hilfe → Was ist neu**. Each item answers: what can they do now, or what is different the next time they do a familiar task?
-
-- **Language:** German. Address the reader as „Sie“. Up to three short sentences. Pragmatic, not a pitch. Use a second or third sentence for a consequence, a limit, or where to set it. Do not pad.
-- **Lead with the outcome.** Name the action (finden, speichern, drucken, filtern, bestätigen) and the place in the UI (Menü, Stammdaten, Vertragstabelle, Einstellungen → …) when they would not find it otherwise.
-- **No empty praise.** Drop adjectives that only compliment the change („übersichtlich“, „flüssig“, „zuverlässig“, „hilfreich“, „im Alltag“) unless the same sentence states the concrete behavior. „funktioniert wieder“ without the symptom is not enough.
-- **No internal motive as the payoff.** Do not end on „hilfreich beim Support“, „für Debugging“, or an implementation detail. If the only payoff is support, either state the user action (Protokoll speichern und per E-Mail schicken) or omit the item.
-- **Bugfixes:** Say what the reader gets. Weak: „Prozessschritte werden zuverlässig übernommen.“ Use: „Ändern Sie den Prozessschritt, wird er beim Speichern mitgeschrieben.“
-- **Renames:** A short line so they find the control under the new name. A further sentence only if the menu then offers a choice they would miss („CSV: aktuelle Ansicht oder alle Verträge“).
-- **One topic per item.** Merge only when it is the same task. Skip visual chrome the reader does not act on.
-- **Omit:** `CHORE`, `REFACTOR`, `TEST`, `CI`, internal renames, build/typecheck fixes, Cursor rules, repo-only docs, and edits to older „Was ist neu“ wording. Do not announce those as a new release item.
-- **Summary:** one German line of what the release is for (may differ from the English CHANGELOG title). No filler.
-- **Structure:** `version` (no `v` prefix), `summary`, `items` (`text`, optional `help`).
-- **Help links:** Set optional `help` to a help article id from `frontend/src/help/catalog.ts` when a topic deserves deeper reading. Do not link an item to `whats-new` itself.
-- **Source:** Translate and filter the closed `CHANGELOG.md` section for that version; do not copy English `TYPE:` prefixes into the UI text.
-
-Example:
-
-- Weak: „Versionsnummer steht in Metadaten und Fuß — hilfreich beim Support.“
-- Use: „PDF-Exporte können im Fuß den Firmennamen der Bibliothek zeigen. Daneben steht die Programmversion, mit der das PDF erzeugt wurde.“
+Right after the tag (project decision, deviates from "wait until shipped"): add a new empty heading at the **end**
+of `CHANGELOG.md` for the next version (patch bump unless the user names another), set it in `FyneApp.toml`
+(`Version`, `Build = 1`) and `version.go`, commit as `chore: bump to vX.Y.Z`.

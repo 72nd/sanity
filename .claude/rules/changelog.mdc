@@ -5,10 +5,7 @@ alwaysApply: true
 
 # Changelog (day-to-day)
 
-Two logs exist:
-
-- **`CHANGELOG.md`** — developer log (English, short).
-- **`frontend/src/help/whatsNew.ts`** — user-facing release notes (German). **Do not** update during normal tasks.
+`CHANGELOG.md` is the developer log (English, short). sanity has no user-facing release notes file.
 
 After every completed task, add a bullet at the **end** of the **last `##` heading** in `CHANGELOG.md` (newest version is last in the file). Merge similar bullets when that reads better.
 
@@ -20,4 +17,4 @@ After every completed task, add a bullet at the **end** of the **last `##` headi
 
 Suggest **two** concise commit messages (lowercase Conventional Commits prefix: `feat:`, `fix:`, …).
 
-Publishing is two steps in `.cursor/rules/changelog-publish.mdc` (only when the user asks): finalize the current version (summary + `whatsNew.ts`, then they build and push the tag), then bump to the next version.
+Publishing is two steps in `.claude/rules/changelog-publish.mdc` (only when the user asks): finalize the current version (summary, then tag), then bump to the next version.

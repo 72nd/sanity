@@ -11,6 +11,7 @@ office/
 *.dll
 *.so
 *.dylib
+/sanity
 
 # Test binary, built with `go test -c`
 *.test
@@ -53,3 +54,6 @@ testdata/src/
 testdata/sweep*
 testdata/text*
 testdata/analysis-output
+
+# Task cache
+.task/

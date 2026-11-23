@@ -7,7 +7,7 @@ import (
 
 // Scan classification thresholds (PLAN.md section 3).
 const (
-	minLayerChars    = 20
+	minLayerChars    = 40
 	maxGarbageShare  = 0.25 // share of non-letter garbage among non-space runes
 	maxSingleTokens  = 0.45 // share of one-rune tokens among all tokens
 	minQualityRunes  = 40   // below this the quality check is not meaningful
